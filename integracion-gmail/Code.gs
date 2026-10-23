@@ -174,9 +174,25 @@ function getOrCreateRegister_() {
   }
   if (!spreadsheet) {
     const files = DriveApp.getFilesByName(COPPELLO_CONFIG.spreadsheetName);
-    spreadsheet = files.hasNext()
-      ? SpreadsheetApp.openById(files.next().getId())
-      : SpreadsheetApp.create(COPPELLO_CONFIG.spreadsheetName);
+    const attachmentFolders = DriveApp.getFoldersByName(COPPELLO_CONFIG.driveFolder);
+    const attachmentFolderId = attachmentFolders.hasNext() ? attachmentFolders.next().getId() : "";
+    let reusableFile = null;
+    while (files.hasNext()) {
+      const candidate = files.next();
+      let isInsideAttachmentsFolder = false;
+      const parents = candidate.getParents();
+      while (parents.hasNext()) {
+        if (parents.next().getId() === attachmentFolderId && attachmentFolderId) {
+          isInsideAttachmentsFolder = true;
+        }
+      }
+      if (!isInsideAttachmentsFolder) { reusableFile = candidate; break; }
+    }
+    // Si solo hay una planilla dentro de la carpeta de adjuntos, no reutilizarla:
+    // crear una nueva en Mi unidad para mantener separados el registro y los archivos.
+    spreadsheet = reusableFile
+      ? SpreadsheetApp.openById(reusableFile.getId())
+      : SpreadsheetApp.create(COPELLO_CONFIG.spreadsheetName);
     properties.setProperty("COPPELLO_REGISTER_ID", spreadsheet.getId());
   }
 
@@ -196,6 +212,15 @@ function getOrCreateRegister_() {
     // Compatibilidad con la planilla creada por la versión anterior.
     const lastColumn = sheet.getLastColumn();
     if (lastColumn < 10) sheet.getRange(1, 10).setValue("Clave única del adjunto");
+  }
+  if (sheet.getLastRow() > 0) {
+    sheet.getRange(1, 1, 1, Math.max(10, sheet.getLastColumn()))
+      .setFontWeight("bold").setBackground("#e9efff");
+    sheet.setFrozenRows(1);
+    if (!sheet.getFilter()) {
+      sheet.getRange(1, 1, sheet.getLastRow(), Math.max(10, sheet.getLastColumn())).createFilter();
+    }
+    sheet.autoResizeColumns(1, Math.max(10, sheet.getLastColumn()));
   }
   return spreadsheet;
 }
