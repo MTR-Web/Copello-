@@ -17,7 +17,7 @@ El borrador dice que se recibió el comprobante, pero aclara que eso no signific
 
 ## Qué sigue haciendo la página Copello
 
-La página `procesar.html` conserva el flujo existente para cargar una copia del Excel maestro, elegir hoja y columnas, analizar comprobantes PDF/imágenes, extraer importe/fecha/operación/pagador cuando el texto lo permite, sugerir unidad solo por coincidencia exacta, revisar y corregir campos, marcar posibles duplicados, exportar CSV y descargar una copia del Excel con la hoja `Pagos recibidos`. Esas lecturas son heurísticas: revisá los resultados manualmente.
+La página `procesar.html` permite cargar una copia del Excel maestro, elegir hoja, fila de encabezados y columnas, analizar comprobantes PDF/imágenes, extraer importe/fecha/operación/pagador cuando el texto lo permite, sugerir unidad/titular solo cuando la coincidencia no es ambigua, corregir manualmente los campos, detectar posibles duplicados, comparar contra el importe esperado, exportar un seguimiento detallado y descargar una copia del Excel con la hoja `Pagos recibidos`. Esas lecturas son heurísticas: revisá los resultados manualmente.
 
 La página tiene una opción para importar el CSV exportado desde la planilla de Gmail. Esa transferencia sigue siendo manual; no hay conexión en vivo entre la página y Gmail. El script se ejecuta desde Google Apps Script; la página está alojada como sitio estático y no debe recibir una URL pública que dé acceso abierto a tu Gmail.
 
@@ -28,12 +28,12 @@ La página tiene una opción para importar el CSV exportado desde la planilla de
 3. Abrí `Code.gs`, reemplazá todo su contenido por el archivo de este repositorio y guardá.
 4. En el selector de funciones elegí `prepararCopelloGmail` y presioná Ejecutar. Revisá y autorizá los permisos de Gmail, Drive y Sheets.
 5. Para intentar conservar la firma habitual en los borradores, abrí **Servicios** (+) en el editor de Apps Script y agregá **Gmail API**. Si no la habilitás, el script seguirá funcionando, pero los borradores podrían quedar sin firma; revisalos antes de enviar.
-5. En Gmail, elegí uno o dos correos de prueba que tengan comprobantes PDF o imágenes y aplicales la etiqueta `Copello_Pagos`.
-6. Volvé a Apps Script, elegí `procesarCorreosCopello` y presioná Ejecutar.
-7. En el registro de ejecución, abrí el enlace de la planilla que aparece en el resultado. La planilla se crea en `Mi unidad` (raíz de Google Drive), fuera de la carpeta `Copello_Comprobantes`, que solo guarda los adjuntos. También podés revisar esa carpeta y los borradores en Gmail.
-8. Revisá las filas, los archivos guardados y el borrador. El borrador no se envía solo.
-9. Cuando confirmes que la prueba salió bien, aplicá la etiqueta `Copello_Pagos` a los correos reales que quieras registrar.
-10. Si querés automatizar las revisiones, elegí `instalarTriggerCopello` y ejecutala una vez. El script revisará cada 15 minutos los correos etiquetados, guardará adjuntos nuevos y creará borradores, pero nunca enviará respuestas automáticamente. Para detenerlo, ejecutá `quitarTriggerCopello`.
+6. En Gmail, elegí uno o dos correos de prueba que tengan comprobantes PDF o imágenes y aplicales la etiqueta `Copello_Pagos`.
+7. Volvé a Apps Script, elegí `procesarCorreosCopello` y presioná Ejecutar.
+8. En el registro de ejecución, abrí el enlace de la planilla que aparece en el resultado. La planilla se crea en `Mi unidad` (raíz de Google Drive), fuera de la carpeta `Copello_Comprobantes`, que solo guarda los adjuntos. También podés revisar esa carpeta y los borradores en Gmail.
+9. Revisá las filas, los archivos guardados y el borrador. El borrador no se envía solo.
+10. Cuando confirmes que la prueba salió bien, aplicá la etiqueta `Copello_Pagos` a los correos reales que quieras registrar.
+11. Si querés automatizar las revisiones, elegí `instalarTriggerCopello` y ejecutala una vez. El script revisará cada 15 minutos los correos etiquetados, guardará adjuntos nuevos y creará borradores, pero nunca enviará respuestas automáticamente. Para detenerlo, ejecutá `quitarTriggerCopello`.
 
 ## Importante
 
