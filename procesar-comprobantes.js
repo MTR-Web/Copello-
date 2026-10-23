@@ -42,6 +42,9 @@ function parseAmount(text){
  return "";
 }
 function parseDate(text){
+ const monthNames="enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(" ");
+ const namedDate=text.match(/\\b(\\d{1,2})\\s*[\\/.-]\\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s*[\\/.-]\\s*(20\\d{2})\\b/i);
+ if(namedDate)return String(namedDate[1]).padStart(2,"0")+"/"+String(monthNames.indexOf(namedDate[2].toLowerCase())+1).padStart(2,"0")+"/"+namedDate[3];
  const patterns=[/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})\b/,/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/];
  let m=text.match(patterns[0]);if(m)return String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3];
  m=text.match(patterns[1]);if(m)return String(m[3]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[1];
