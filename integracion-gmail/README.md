@@ -1,34 +1,37 @@
-# Puente gratuito de Gmail para Copello
+# Registro gratuito de comprobantes de Gmail para Copello
 
-Este pequeño script usa Google Apps Script, Gmail y Google Drive de la propia cuenta. No requiere Superhuman ni una suscripción externa.
+Este script usa Google Apps Script, Gmail, Google Drive y Google Sheets de la propia cuenta. No requiere Superhuman ni una suscripción externa.
 
-## Qué hace esta primera versión
+## Qué hace
 
-- Solo procesa correos a los que vos les apliques la etiqueta `Copello_Pagos`.
+- Solo revisa correos a los que vos les apliques la etiqueta `Copello_Pagos`.
 - Busca adjuntos PDF e imágenes.
-- Copia los adjuntos a una carpeta de Google Drive llamada `Copello_Comprobantes`.
-- Crea un borrador de respuesta en Gmail con un acuse de recibo que aclara que no confirma la acreditación del pago.
-- Marca el hilo con `Copello_Procesado` para no volver a procesarlo en ejecuciones normales.
-- **Nunca envía correos automáticamente.**
+- Guarda cada adjunto en una carpeta de Google Drive llamada `Copello_Comprobantes`.
+- Agrega una fila por cada adjunto compatible a la planilla `Copello_Registro_Comprobantes`.
+- La fila registra fecha de recepción, fecha del correo, remitente, asunto, nombre y tipo del archivo, enlace al adjunto en Drive y el estado `Recibido — pendiente de verificar`.
+- Marca el hilo con `Copello_Procesado` para evitar volver a registrarlo en ejecuciones normales.
+- **No crea borradores ni envía correos.**
 
-Esta primera versión no interpreta todavía los importes ni los números de operación, no detecta duplicados entre comprobantes, no concilia contra el banco y no integra directamente los archivos con la página de Copello. Es el puente inicial de correo; esas funciones requieren una siguiente etapa y pruebas con comprobantes reales anonimizados.
+La planilla se crea en Google Sheets y se puede descargar desde Archivo → Descargar → Microsoft Excel (.xlsx). El script registra que llegó un comprobante; no interpreta el importe, no asigna una unidad automáticamente, no confirma que el pago esté acreditado y no modifica el Excel maestro de expensas.
 
-## Instalación
+## Instalación o actualización
 
 1. Iniciá sesión en la cuenta Gmail que recibe los comprobantes.
-2. Abrí [Google Apps Script](https://script.google.com/) y creá un proyecto nuevo.
-3. Reemplazá el contenido de `Code.gs` con el código de este repositorio.
-4. Guardá el proyecto.
-5. En el selector de funciones, ejecutá `prepararCopelloGmail`. Google te pedirá autorizar el acceso a Gmail y Drive. Revisá los permisos antes de aceptar.
-6. En Gmail, identificá un correo de prueba y aplicale la etiqueta `Copello_Pagos`. No etiquetes toda la bandeja.
-7. Volvé a Apps Script y ejecutá `procesarCorreosCopello`.
-8. Revisá la carpeta `Copello_Comprobantes` en Drive y la carpeta Borradores en Gmail. Confirmá que el texto y los archivos sean correctos antes de usarlo con correos reales.
+2. Abrí [Google Apps Script](https://script.google.com/) y entrá al proyecto que ya habías creado para Copello.
+3. Reemplazá el contenido de `Code.gs` con la versión de este repositorio y guardá.
+4. En el selector de funciones, ejecutá `prepararCopelloGmail`. Autorizá los permisos de Gmail, Drive y Sheets si Google te los solicita.
+5. En Gmail, aplicá la etiqueta `Copello_Pagos` a uno o dos correos de prueba que tengan comprobantes PDF o imágenes.
+6. Ejecutá `procesarCorreosCopello`.
+7. En el registro de ejecución, abrí el enlace de la planilla. También podés buscar en Drive la carpeta `Copello_Comprobantes` para revisar los adjuntos guardados.
+8. Revisá el resultado antes de usarlo con correos reales.
+
+Si ya habías procesado un correo de prueba, puede tener la etiqueta `Copello_Procesado` y no volverá a aparecer en la búsqueda normal. Para probarlo otra vez, quitá esa etiqueta de ese hilo y volvé a ejecutar la función.
 
 ## Seguridad y límites
 
-- No publiques el proyecto de Apps Script como una aplicación web ni compartas el proyecto con terceros.
-- Ejecutalo manualmente y probá primero con un correo propio de prueba.
-- El script solo considera correos etiquetados por vos; no rastrea toda la bandeja.
-- Los adjuntos se copian a Google Drive. Protegé el acceso a esa carpeta porque puede contener datos personales y financieros.
-- El código no modifica ni sobrescribe el Excel maestro.
-- Si una ejecución falla parcialmente, revisá los registros antes de volver a ejecutarla, porque un borrador o un archivo podría haberse creado antes del error.
+- No publiques el proyecto como una aplicación web ni compartas el proyecto con terceros.
+- Ejecutalo manualmente; no se configura ningún envío automático.
+- Solo procesa los correos que tengan la etiqueta `Copello_Pagos` y adjuntos compatibles.
+- Protegé el acceso a la carpeta y la planilla porque pueden contener datos personales y financieros.
+- El Excel maestro de expensas no se modifica.
+- Si ocurre un error parcial, revisá la planilla y la carpeta de Drive antes de volver a ejecutar: un archivo o una fila podría haberse creado antes del error.
