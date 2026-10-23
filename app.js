@@ -4,6 +4,8 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const STORAGE_KEY = "copello.demo.buildings.v1";
+  const PAYMENTS_KEY = "copello.demo.payments.v1";
+  let payments = (() => { try { const v = JSON.parse(localStorage.getItem(PAYMENTS_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } })();
   let currentView = "dashboard";
   let selectedBuildingId = null;
   let toastTimer;
@@ -88,7 +90,21 @@
     $("#reset-theme").addEventListener("click", () => { applyTheme(); renderSettings(); showToast("Se restauraron los colores de config.js."); });
   }
   function renderPayments() {
-    $("#app-content").innerHTML = '<section class="welcome"><div><p class="eyebrow">CONTROL ADMINISTRATIVO</p><h1>Pagos y comprobantes</h1><p class="muted">Este módulo se conectará con el procesamiento de comprobantes y Gmail.</p></div></section><section class="detail-block"><h2>Preparado para la siguiente etapa</h2><p class="muted">La integración leerá comprobantes autorizados, extraerá datos para revisión y podrá crear borradores de respuesta en Gmail. No enviará mensajes automáticamente ni modificará el Excel maestro original.</p></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Requiere un servidor seguro</strong><p>La conexión con Gmail y el registro compartido entre computadora y celular no deben implementarse guardando credenciales en el navegador o en el repositorio.</p></div></section>';
+    const rows = payments.slice().reverse().map(p => '<tr><td>'+escapeHtml(p.date || '—')+'</td><td><strong>'+escapeHtml(p.amount || 'Sin importe')+'</strong></td><td>'+escapeHtml(p.payer || 'No identificado')+'</td><td>'+escapeHtml(p.sender || '—')+'</td><td><span class="payment-status">'+escapeHtml(p.status || 'Comprobante recibido')+'</span></td><td><button class="row-delete" data-payment-delete="'+escapeHtml(p.id)+'" title="Eliminar registro" aria-label="Eliminar registro">×</button></td></tr>').join('');
+    $("#app-content").innerHTML = '<section class="welcome"><div><p class="eyebrow">CONTROL ADMINISTRATIVO</p><h1>Pagos y comprobantes</h1><p class="muted">Una sola lista para registrar cada comprobante recibido.</p></div><button class="secondary-button" id="export-payments">Exportar CSV</button></section><section class="detail-block"><h2>Registrar comprobante</h2><p class="muted">Para practicar manualmente mientras se prepara la conexión con Gmail.</p><form id="payment-form" class="payment-form"><div class="detail-grid"><div><label for="payment-date">Fecha del pago</label><input id="payment-date" name="date" type="date"></div><div><label for="payment-amount">Importe (ARS)</label><input id="payment-amount" name="amount" inputmode="decimal" placeholder="Ej. 5000"></div><div><label for="payment-payer">Nombre del pagador</label><input id="payment-payer" name="payer" placeholder="Si falta, usar remitente"></div><div><label for="payment-sender">Remitente del correo</label><input id="payment-sender" name="sender" placeholder="Nombre o correo electrónico"></div></div><label for="payment-file">Nombre del archivo (opcional)</label><input id="payment-file" name="file" placeholder="comprobante.jpg o comprobante.pdf"><div class="form-actions"><button type="submit" class="primary-button">＋ Guardar en la lista</button></div></form></section><section class="detail-block"><div class="table-heading"><div><h2>Registro acumulado</h2><p class="muted">'+payments.length+' comprobante(s) registrado(s) en este navegador.</p></div></div><div class="table-wrap"><table class="payments-table"><thead><tr><th>Fecha de pago</th><th>Importe</th><th>Nombre del pagador</th><th>Remitente</th><th>Estado</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="6" class="table-empty">Todavía no hay comprobantes registrados.</td></tr>')+'</tbody></table></div></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Importante</strong><p>“Comprobante recibido” no significa que el pago esté acreditado. Los registros de esta demo se guardan en este navegador; todavía no se conectan con Gmail ni se sincronizan entre dispositivos.</p></div></section>';
+    $("#payment-form").addEventListener("submit", event => {
+      event.preventDefault(); const fd = new FormData(event.currentTarget);
+      const payer = String(fd.get("payer") || "").trim(); const sender = String(fd.get("sender") || "").trim();
+      payments.push({id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), date:String(fd.get("date")||""), amount:String(fd.get("amount")||"").trim(), payer:payer || sender || "No identificado", sender, file:String(fd.get("file")||"").trim(), status:"Comprobante recibido"});
+      try { localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments)); } catch (_) { showToast("No se pudo guardar en este navegador."); return; }
+      renderPayments(); showToast("Comprobante agregado a la lista.");
+    });
+    $("#export-payments").addEventListener("click", () => {
+      const cols = ["Fecha del pago","Importe (ARS)","Nombre del pagador","Remitente del correo","Archivo","Estado"];
+      const csvCell = value => '"' + String(value ?? "").replace(/"/g, '""') + '"';
+      const lines = [cols, ...payments.map(p => [p.date,p.amount,p.payer,p.sender,p.file,p.status])].map(row => row.map(csvCell).join(";")).join("\r\n");
+      const blob = new Blob(["\\uFEFF", lines], {type:"text/csv;charset=utf-8;"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="Seguimiento_Comprobantes.csv"; a.click(); URL.revokeObjectURL(url);
+    });
   }
   function render() {
     if (currentView === "dashboard") renderDashboard();
@@ -126,6 +142,14 @@
     const viewButton = event.target.closest("[data-view]");
     if (viewButton) { go(viewButton.dataset.view); return; }
     if (event.target.closest("#add-building-top")) { openModal(); return; }
+    const paymentDelete = event.target.closest("[data-payment-delete]");
+    if (paymentDelete) {
+      const p = payments.find(item => item.id === paymentDelete.dataset.paymentDelete);
+      if (!p || !window.confirm("¿Eliminar este registro de práctica?")) return;
+      payments = payments.filter(item => item.id !== p.id);
+      try { localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments)); } catch (_) {}
+      renderPayments(); showToast("Registro eliminado."); return;
+    }
     const deleteButton = event.target.closest("[data-delete]");
     if (deleteButton) {
       const b = buildings.find(item => item.id === deleteButton.dataset.delete);
