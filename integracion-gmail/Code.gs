@@ -62,7 +62,7 @@ function procesarCorreosCopello() {
 
           const safeName = makeSafeName_(
             Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") +
-            "_" + message.getId().slice(-7) + "_" + originalName
+            "_" + message.getId().slice(-7) + "_a" + attachmentIndex + "_" + originalName
           );
           const file = folder.createFile(attachment.copyBlob()).setName(safeName);
           attachmentsSaved++;
