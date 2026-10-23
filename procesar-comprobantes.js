@@ -4,6 +4,7 @@ const $ = s => document.querySelector(s);
 let workbook = null, masterBytes = null, masterName = "", masterRows = [], receipts = [];
 const ACK = "Hola, recibimos tu comprobante. Gracias. Este mensaje confirma únicamente la recepción del archivo y no la acreditación del pago.";
 const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/g,"\\const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");");
 const esc = v => String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800);}
 function setProgress(p,msg){$("#progress-fill").style.width=Math.max(0,Math.min(100,p))+"%";$("#process-status").textContent=msg;}
@@ -77,7 +78,7 @@ function matchUnit(text){
  const matches=masterRows.filter(r=>[r.unit,r.name].some(candidate=>{
    const value=String(candidate||"").trim();
    if(value.length<3)return false;
-   return source.includes(value.toLowerCase());
+   return new RegExp("(^|[^a-z0-9])"+escapeRegExp(value)+"($|[^a-z0-9])","i").test(source);
  }));
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
  return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
@@ -134,12 +135,13 @@ function render(){
  $("#download-copy").disabled=!workbook;$("#export-csv").disabled=!receipts.length;
  body.querySelectorAll("input[data-field],select[data-field]").forEach(el=>el.addEventListener("change",()=>{
  const row=el.closest("tr"),r=receipts.find(x=>x.id===row.dataset.id);if(!r)return;r[el.dataset.field]=el.value;
+ if(el.dataset.field==="unit"){const match=masterRows.find(m=>m.unit===r.unit);r.expected=match?.expected||"";}
  if(el.dataset.field==="operation"&&r.status==="Duplicado posible")r.status="Pendiente de revisar";render();
  }));
  body.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{receipts=receipts.filter(r=>r.id!==b.dataset.remove);render();}));
  body.querySelectorAll("[data-draft]").forEach(b=>b.addEventListener("click",()=>{const r=receipts.find(x=>x.id===b.dataset.draft);if(!r)return;$("#extracted-text").textContent="Borrador de acuse de recibo (no enviado):\n\n"+ACK+"\n\nArchivo: "+r.file+"\nImporte detectado: "+(r.amount||"pendiente de revisar")+"\nFecha detectada: "+(r.date||"pendiente de revisar")+"\n\n"+(r.text||"");$("#extracted-text").scrollIntoView({behavior:"smooth",block:"center"});}));
 }
-function currentRows(){return receipts.map(r=>{const match=masterRows.find(m=>m.unit===r.unit);return {Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Consorcio:match?.building||"",Unidad:r.unit,Propietario:match?.name||"",ImporteEsperado:r.expected,Estado:r.status,Observacion:r.status==="Duplicado posible"?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":(r.expected&&r.amount&&moneyNumber(r.expected)!==moneyNumber(r.amount))?"Importe distinto del esperado; revisar antes de imputar":"Revisar acreditación bancaria antes de cerrar"};});}
+function currentRows(){return receipts.map(r=>{const match=masterRows.find(m=>m.unit===r.unit);const duplicate=!!r.operation&&receipts.filter(x=>normalizeOperation(x.operation)===normalizeOperation(r.operation)).length>1;const status=duplicate?"Duplicado posible":r.status;return {Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Consorcio:match?.building||"",Unidad:r.unit,Propietario:match?.name||"",ImporteEsperado:r.expected,Estado:status,Observacion:duplicate?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":(r.expected&&r.amount&&moneyNumber(r.expected)!==moneyNumber(r.amount))?"Importe distinto del esperado; revisar antes de imputar":"Revisar acreditación bancaria antes de cerrar"};});}
 $("#export-csv").addEventListener("click",()=>{
  const rows=currentRows(),csv=[Object.keys(rows[0]||{}),...rows.map(Object.values)].map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});downloadBlob(blob,"Seguimiento_Comprobantes.csv");
