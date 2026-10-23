@@ -4,7 +4,7 @@ const $ = s => document.querySelector(s);
 let workbook = null, masterBytes = null, masterName = "", masterRows = [], receipts = [];
 const ACK = "Hola, recibimos tu comprobante. Gracias. Este mensaje confirma únicamente la recepción del archivo y no la acreditación del pago.";
 const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
-const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\]\\]/g,"\\const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");");
+const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 const esc = v => String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800);}
 function setProgress(p,msg){$("#progress-fill").style.width=Math.max(0,Math.min(100,p))+"%";$("#process-status").textContent=msg;}
