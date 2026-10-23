@@ -4,7 +4,6 @@ const $ = s => document.querySelector(s);
 let workbook = null, masterBytes = null, masterName = "", masterRows = [], receipts = [];
 const ACK = "Hola, recibimos tu comprobante. Gracias. Este mensaje confirma únicamente la recepción del archivo y no la acreditación del pago.";
 const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
-const escapeRegExp = value => String(value).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 const esc = v => String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2800);}
 function setProgress(p,msg){$("#progress-fill").style.width=Math.max(0,Math.min(100,p))+"%";$("#process-status").textContent=msg;}
@@ -74,11 +73,12 @@ function parsePerson(text){
 }
 function matchUnit(text){
  if(!masterRows.length)return null;
- const source=String(text??"").toLowerCase();
+ const source=" "+String(text??"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ")+" ";
  const matches=masterRows.filter(r=>[r.unit,r.name].some(candidate=>{
    const value=String(candidate||"").trim();
    if(value.length<3)return false;
-   return new RegExp("(^|[^a-z0-9])"+escapeRegExp(value)+"($|[^a-z0-9])","i").test(source);
+   const candidateKey=" "+value.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ")+" ";
+   return source.includes(candidateKey);
  }));
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
  return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
