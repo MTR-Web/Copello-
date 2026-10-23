@@ -79,7 +79,9 @@ function procesarCorreosCopello() {
 
         // Solo crea un borrador si encontró adjuntos nuevos. Nunca envía el mensaje.
         if (newAttachmentsForMessage > 0) {
-          message.createDraftReply(COPPELLO_CONFIG.acknowledgement);
+          const signature = getDefaultGmailSignature_();
+          const htmlBody = "<p>" + escapeHtmlForHtml_(COPPELLO_CONFIG.acknowledgement).replace(/\\n/g, "<br>") + "</p>" + signature;
+          message.createDraftReply(COPPELLO_CONFIG.acknowledgement, { htmlBody: htmlBody });
           draftsCreated++;
           messagesProcessed++;
         }
@@ -129,6 +131,25 @@ function quitarTriggerCopello() {
     if (trigger.getHandlerFunction() === "procesarCorreosCopello") ScriptApp.deleteTrigger(trigger);
   });
   Logger.log("Se quitaron los disparadores automáticos de Copello.");
+}
+
+
+/** Lee la firma predeterminada de Gmail si el servicio avanzado Gmail API está habilitado. */
+function getDefaultGmailSignature_() {
+  try {
+    const response = Gmail.Users.Settings.SendAs.list("me");
+    const sendAs = response && response.sendAs ? response.sendAs : [];
+    const sender = sendAs.find(function(item) { return item.isDefault; }) || sendAs[0];
+    return sender && sender.signature ? sender.signature : "";
+  } catch (err) {
+    // Si no se habilitó Gmail API avanzada, el borrador se crea sin firma para evitar bloquear el proceso.
+    Logger.log("No se pudo leer la firma de Gmail. Si querés conservarla, habilitá el servicio avanzado Gmail API. " + err);
+    return "";
+  }
+}
+
+function escapeHtmlForHtml_(value) {
+  return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
 }
 
 function getKnownAttachmentKeys_(sheet) {
