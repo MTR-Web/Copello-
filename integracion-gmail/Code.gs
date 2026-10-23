@@ -1,11 +1,12 @@
 /**
  * Copello — Gmail + Drive + registro de comprobantes.
  *
- * Ejecutá prepararCopelloGmail() una vez. Después ejecutá
- * procesarCorreosCopello() cuando quieras revisar los correos etiquetados.
+ * 1) Ejecutá prepararCopelloGmail() una vez.
+ * 2) Aplicá la etiqueta Gmail "Copello_Pagos" a los mensajes.
+ * 3) Ejecutá procesarCorreosCopello() cuando quieras actualizar el registro.
  *
- * Guarda adjuntos en Drive, registra una fila por archivo en Sheets y crea
- * un borrador de acuse de recibo en Gmail. Nunca envía correos.
+ * El registro de Google Sheets se crea en Mi unidad (raíz de Drive),
+ * separado de la carpeta Copello_Comprobantes. Nunca envía correos.
  */
 const COPPELLO_CONFIG = {
   paymentLabel: "Copello_Pagos",
@@ -20,8 +21,9 @@ function prepararCopelloGmail() {
   getOrCreateLabel_(COPPELLO_CONFIG.paymentLabel);
   getOrCreateLabel_(COPPELLO_CONFIG.processedLabel);
   getOrCreateFolder_(COPPELLO_CONFIG.driveFolder);
-  getOrCreateRegister_();
-  Logger.log('Preparado. Aplicá la etiqueta "' + COPPELLO_CONFIG.paymentLabel + '" en Gmail a los correos con comprobantes.');
+  const spreadsheet = getOrCreateRegister_();
+  Logger.log('Preparado. Planilla (en Mi unidad, fuera de la carpeta de adjuntos): ' + spreadsheet.getUrl());
+  Logger.log('Aplicá la etiqueta "' + COPPELLO_CONFIG.paymentLabel + '" a los correos con comprobantes.');
 }
 
 function procesarCorreosCopello() {
@@ -29,9 +31,12 @@ function procesarCorreosCopello() {
   const folder = getOrCreateFolder_(COPPELLO_CONFIG.driveFolder);
   const register = getOrCreateRegister_();
   const sheet = register.getSheetByName(COPPELLO_CONFIG.sheetName);
-  const query = "label:" + COPPELLO_CONFIG.paymentLabel + " has:attachment -label:" + COPPELLO_CONFIG.processedLabel;
-  const threads = GmailApp.search(query, 0, 50);
-  let messagesProcessed = 0, attachmentsSaved = 0, rowsAdded = 0, draftsCreated = 0;
+  // No excluimos hilos ya procesados: Gmail etiqueta conversaciones enteras y
+  // podría ocultar mensajes nuevos dentro de un hilo anterior. La clave única evita duplicados.
+  const query = "label:" + COPPELLO_CONFIG.paymentLabel + " has:attachment";
+  const threads = GmailApp.search(query, 0, 100);
+  const knownKeys = getKnownAttachmentKeys_(sheet);
+  let messagesProcessed = 0, attachmentsSaved = 0, rowsAdded = 0, draftsCreated = 0, duplicatesSkipped = 0;
   const errors = [];
 
   threads.forEach(function(thread) {
@@ -44,51 +49,75 @@ function procesarCorreosCopello() {
         }).filter(isSupportedReceipt_);
         if (!attachments.length) return;
         threadHadReceipt = true;
+        let newAttachmentsForMessage = 0;
 
-        attachments.forEach(function(attachment) {
+        attachments.forEach(function(attachment, attachmentIndex) {
+          const originalName = attachment.getName() || "comprobante";
+          const uniqueKey = [message.getId(), attachmentIndex, originalName, attachment.getSize()].join("|");
+          if (knownKeys.has(uniqueKey)) {
+            duplicatesSkipped++;
+            return;
+          }
+
           const safeName = makeSafeName_(
             Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") +
-            "_" + attachment.getName()
+            "_" + message.getId().slice(-7) + "_" + originalName
           );
           const file = folder.createFile(attachment.copyBlob()).setName(safeName);
           attachmentsSaved++;
           sheet.appendRow([
             new Date(), message.getDate(), message.getFrom() || "",
-            message.getSubject() || "(sin asunto)", attachment.getName() || "",
+            message.getSubject() || "(sin asunto)", originalName,
             attachment.getContentType() || "", file.getUrl(),
-            "Recibido — pendiente de verificar", message.getId()
+            "Recibido — pendiente de verificar", message.getId(), uniqueKey
           ]);
+          knownKeys.add(uniqueKey);
           rowsAdded++;
+          newAttachmentsForMessage++;
         });
 
-        // Solo crea un borrador; nunca envía el mensaje.
-        message.createDraftReply(COPPELLO_CONFIG.acknowledgement);
-        draftsCreated++;
-        messagesProcessed++;
+        // Solo crea un borrador si encontró adjuntos nuevos. Nunca envía el mensaje.
+        if (newAttachmentsForMessage > 0) {
+          message.createDraftReply(COPPELLO_CONFIG.acknowledgement);
+          draftsCreated++;
+          messagesProcessed++;
+        }
       } catch (err) {
         threadHadError = true;
         errors.push((message.getSubject() || "(sin asunto)") + ": " +
           (err && err.message ? err.message : String(err)));
       }
     });
-    // No marca hilos sin comprobantes compatibles ni hilos con errores.
+    // Etiqueta informativa; la siguiente ejecución puede revisar el hilo, pero no duplicará filas.
     if (threadHadReceipt && !threadHadError) thread.addLabel(processedLabel);
   });
 
   const summary = [
     "Copello terminó la revisión manual de Gmail.",
     "Hilos encontrados: " + threads.length,
-    "Mensajes con comprobantes: " + messagesProcessed,
+    "Mensajes con adjuntos nuevos: " + messagesProcessed,
     "Adjuntos guardados en Drive: " + attachmentsSaved,
-    "Filas agregadas a la planilla: " + rowsAdded,
+    "Filas nuevas en la planilla: " + rowsAdded,
+    "Adjuntos ya registrados omitidos: " + duplicatesSkipped,
     "Borradores creados: " + draftsCreated,
-    "Planilla: " + register.getUrl(),
+    "Planilla en Mi unidad: " + register.getUrl(),
     errors.length ? "Errores:\n- " + errors.join("\n- ") : "Errores: ninguno",
     "",
     "No se envió ningún correo."
   ].join("\n");
   Logger.log(summary);
   return summary;
+}
+
+function getKnownAttachmentKeys_(sheet) {
+  const keys = new Set();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return keys;
+  // La columna J contiene la clave única de cada adjunto.
+  sheet.getRange(2, 10, lastRow - 1, 1).getValues().forEach(function(row) {
+    if (row[0]) keys.add(String(row[0]));
+  });
+  return keys;
 }
 
 function getOrCreateRegister_() {
@@ -115,9 +144,13 @@ function getOrCreateRegister_() {
     sheet.appendRow([
       "Fecha de registro", "Fecha del correo", "Remitente", "Asunto",
       "Nombre del adjunto", "Tipo de archivo", "Archivo en Drive",
-      "Estado", "ID del mensaje"
+      "Estado", "ID del mensaje", "Clave única del adjunto"
     ]);
     sheet.setFrozenRows(1);
+  } else {
+    // Compatibilidad con la planilla creada por la versión anterior.
+    const lastColumn = sheet.getLastColumn();
+    if (lastColumn < 10) sheet.getRange(1, 10).setValue("Clave única del adjunto");
   }
   return spreadsheet;
 }
