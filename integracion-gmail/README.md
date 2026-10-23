@@ -11,6 +11,7 @@ Esta integración gratuita usa Google Apps Script, Gmail, Google Drive y Google 
 - Marca el hilo como `Copello_Procesado` cuando el procesamiento termina sin errores; la etiqueta es informativa y no impide detectar mensajes nuevos en hilos antiguos.
 - Evita registrar dos veces un mismo adjunto mediante una clave única, incluso al volver a ejecutar el proceso.
 - **No envía correos automáticamente.**
+- Puede ejecutarse manualmente o mediante un disparador opcional cada 15 minutos, una vez instalado y autorizado.
 
 El borrador dice que se recibió el comprobante, pero aclara que eso no significa que el pago esté acreditado. La planilla de Google Sheets se puede descargar como Excel desde Archivo → Descargar → Microsoft Excel (.xlsx).
 
@@ -30,13 +31,16 @@ La página tiene una opción para importar el CSV exportado desde la planilla de
 6. Volvé a Apps Script, elegí `procesarCorreosCopello` y presioná Ejecutar.
 7. En el registro de ejecución, abrí el enlace de la planilla que aparece en el resultado. La planilla se crea en `Mi unidad` (raíz de Google Drive), fuera de la carpeta `Copello_Comprobantes`, que solo guarda los adjuntos. También podés revisar esa carpeta y los borradores en Gmail.
 8. Revisá las filas, los archivos guardados y el borrador. El borrador no se envía solo.
-9. Cuando confirmes que la prueba salió bien, aplicá la etiqueta `Copello_Pagos` a los correos reales que quieras registrar y ejecutá la función cuando necesites actualizar la planilla.
+9. Cuando confirmes que la prueba salió bien, aplicá la etiqueta `Copello_Pagos` a los correos reales que quieras registrar.
+10. Si querés automatizar las revisiones, elegí `instalarTriggerCopello` y ejecutala una vez. El script revisará cada 15 minutos los correos etiquetados, guardará adjuntos nuevos y creará borradores, pero nunca enviará respuestas automáticamente. Para detenerlo, ejecutá `quitarTriggerCopello`.
 
 ## Importante
 
 - No publiques Apps Script como aplicación web abierta ni compartas el proyecto con terceros.
 - La integración se ejecuta manualmente desde Google Apps Script. Para pasar los registros a la página Copello: abrí `Copello_Registro_Comprobantes`, descargala como CSV (Archivo → Descargar → Valores separados por comas), entrá en Pagos y comprobantes en Copello y usá `Importar CSV de Gmail`. La página evita importar registros repetidos. Esta transferencia sigue siendo manual; no hay conexión en vivo entre la página y Gmail.
-- La etiqueta `Copello_Procesado` es informativa. El script vuelve a revisar los hilos etiquetados, pero omite adjuntos ya registrados.
+- La etiqueta `Copello_Procesado` es informativa. El script vuelve a revisar los hilos etiquetados, pero omite adjuntos ya registrados. La clave única permite distinguir adjuntos con el mismo nombre dentro de un mismo mensaje; las filas históricas se deduplican con la clave disponible en la versión anterior.
 - Si hay un error parcial, revisá la planilla, Drive y Borradores antes de volver a ejecutar para evitar registros duplicados.
-- El script no lee importes ni asigna unidades en la planilla. El registro significa “se recibió un archivo”, no “se confirmó el pago”.
+- El script no lee importes ni asigna unidades en la planilla. La lectura de importes, fecha, operación, unidad y comparación contra el Excel maestro se hace en `procesar.html`, con heurísticas que deben revisarse manualmente. El registro significa “se recibió un archivo”, no “se confirmó el pago”.
+- El disparador automático solo procesa mensajes que tengan la etiqueta `Copello_Pagos`; no se recomienda etiquetar automáticamente todo correo con adjuntos. Probá primero con correos controlados.
+- La página web no puede leer la firma guardada en Gmail ni modificar borradores de la cuenta directamente. Los borradores creados por Apps Script deben revisarse en Gmail y, si tu firma no aparece, agregarla antes de enviar.
 - El Excel maestro de expensas no se modifica. La página descarga una copia cuando usás el botón correspondiente.
