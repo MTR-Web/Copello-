@@ -91,13 +91,82 @@
   }
   function renderPayments() {
     const rows = payments.slice().reverse().map(p => '<tr><td>'+escapeHtml(p.date || '—')+'</td><td><strong>'+escapeHtml(p.amount || 'Sin importe')+'</strong></td><td>'+escapeHtml(p.payer || 'No identificado')+'</td><td>'+escapeHtml(p.sender || '—')+'</td><td><span class="payment-status">'+escapeHtml(p.status || 'Comprobante recibido')+'</span></td><td><button class="row-delete" data-payment-delete="'+escapeHtml(p.id)+'" title="Eliminar registro" aria-label="Eliminar registro">×</button></td></tr>').join('');
-    $("#app-content").innerHTML = '<section class="welcome"><div><p class="eyebrow">CONTROL ADMINISTRATIVO</p><h1>Pagos y comprobantes</h1><p class="muted">Una sola lista para registrar cada comprobante recibido.</p></div><button class="secondary-button" id="export-payments">Exportar CSV</button></section><section class="detail-block"><h2>Registrar comprobante</h2><p class="muted">Para practicar manualmente mientras se prepara la conexión con Gmail.</p><form id="payment-form" class="payment-form"><div class="detail-grid"><div><label for="payment-date">Fecha del pago</label><input id="payment-date" name="date" type="date"></div><div><label for="payment-amount">Importe (ARS)</label><input id="payment-amount" name="amount" inputmode="decimal" placeholder="Ej. 5000"></div><div><label for="payment-payer">Nombre del pagador</label><input id="payment-payer" name="payer" placeholder="Si falta, usar remitente"></div><div><label for="payment-sender">Remitente del correo</label><input id="payment-sender" name="sender" placeholder="Nombre o correo electrónico"></div></div><label for="payment-file">Nombre del archivo (opcional)</label><input id="payment-file" name="file" placeholder="comprobante.jpg o comprobante.pdf"><div class="form-actions"><button type="submit" class="primary-button">＋ Guardar en la lista</button></div></form></section><section class="detail-block"><div class="table-heading"><div><h2>Registro acumulado</h2><p class="muted">'+payments.length+' comprobante(s) registrado(s) en este navegador.</p></div></div><div class="table-wrap"><table class="payments-table"><thead><tr><th>Fecha de pago</th><th>Importe</th><th>Nombre del pagador</th><th>Remitente</th><th>Estado</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="6" class="table-empty">Todavía no hay comprobantes registrados.</td></tr>')+'</tbody></table></div></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Importante</strong><p>“Comprobante recibido” no significa que el pago esté acreditado. Los registros de esta demo se guardan en este navegador; todavía no se conectan con Gmail ni se sincronizan entre dispositivos.</p></div></section>';
+    $("#app-content").innerHTML = '<section class="welcome"><div><p class="eyebrow">CONTROL ADMINISTRATIVO</p><h1>Pagos y comprobantes</h1><p class="muted">Una sola lista para registrar cada comprobante recibido.</p></div><div class="processor-actions"><button class="secondary-button" id="import-gmail-register">Importar CSV de Gmail</button><input id="gmail-register-file" type="file" accept=".csv,text/csv" hidden><button class="secondary-button" id="export-payments">Exportar CSV</button></div></section><section class="detail-block"><h2>Importar registro de Gmail</h2><p class="muted">Desde Google Sheets, descargá la planilla como CSV y cargala acá. Se agregan los comprobantes que todavía no estén en esta lista; no se confirma la acreditación del pago.</p><p class="small-note">La importación es manual. La página todavía no se conecta directamente a tu Gmail o Drive.</p></section><section class="detail-block"><h2>Registrar comprobante manualmente</h2><p class="muted">También podés cargar un registro a mano.</p><form id="payment-form" class="payment-form"><div class="detail-grid"><div><label for="payment-date">Fecha del pago</label><input id="payment-date" name="date" type="date"></div><div><label for="payment-amount">Importe (ARS)</label><input id="payment-amount" name="amount" inputmode="decimal" placeholder="Ej. 5000"></div><div><label for="payment-payer">Nombre del pagador</label><input id="payment-payer" name="payer" placeholder="Si falta, usar remitente"></div><div><label for="payment-sender">Remitente del correo</label><input id="payment-sender" name="sender" placeholder="Nombre o correo electrónico"></div></div><label for="payment-file">Nombre del archivo (opcional)</label><input id="payment-file" name="file" placeholder="comprobante.jpg o comprobante.pdf"><div class="form-actions"><button type="submit" class="primary-button">＋ Guardar en la lista</button></div></form></section><section class="detail-block"><div class="table-heading"><div><h2>Registro acumulado</h2><p class="muted">'+payments.length+' comprobante(s) registrado(s) en este navegador.</p></div></div><div class="table-wrap"><table class="payments-table"><thead><tr><th>Fecha de pago</th><th>Importe</th><th>Nombre del pagador</th><th>Remitente</th><th>Estado</th><th></th></tr></thead><tbody>'+(rows || '<tr><td colspan="6" class="table-empty">Todavía no hay comprobantes registrados.</td></tr>')+'</tbody></table></div></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Importante</strong><p>“Comprobante recibido” no significa que el pago esté acreditado. Los registros importados o cargados a mano se guardan en este navegador. Para traer los correos nuevos, exportá la planilla de Gmail como CSV e importala acá.</p></div></section>';
     $("#payment-form").addEventListener("submit", event => {
       event.preventDefault(); const fd = new FormData(event.currentTarget);
       const payer = String(fd.get("payer") || "").trim(); const sender = String(fd.get("sender") || "").trim();
       payments.push({id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), date:String(fd.get("date")||""), amount:String(fd.get("amount")||"").trim(), payer:payer || sender || "No identificado", sender, file:String(fd.get("file")||"").trim(), status:"Comprobante recibido"});
       try { localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments)); } catch (_) { showToast("No se pudo guardar en este navegador."); return; }
       renderPayments(); showToast("Comprobante agregado a la lista.");
+    });
+    $("#import-gmail-register").addEventListener("click", () => $("#gmail-register-file").click());
+    $("#gmail-register-file").addEventListener("change", async event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const raw = (await file.text()).replace(/^\\uFEFF/, "");
+        const parseCsv = text => {
+          const rows = []; let row = [], cell = "", quoted = false;
+          for (let i = 0; i < text.length; i++) {
+            const ch = text[i], next = text[i + 1];
+            if (ch === '"' && quoted && next === '"') { cell += '"'; i++; }
+            else if (ch === '"') quoted = !quoted;
+            else if ((ch === ";" || ch === ",") && !quoted) { row.push(cell); cell = ""; }
+            else if ((ch === "\\n" || ch === "\\r") && !quoted) {
+              if (ch === "\\r" && next === "\\n") i++;
+              row.push(cell); if (row.some(v => v.trim())) rows.push(row);
+              row = []; cell = "";
+            } else cell += ch;
+          }
+          if (cell || row.length) { row.push(cell); rows.push(row); }
+          return rows;
+        };
+        const parsed = parseCsv(raw);
+        if (parsed.length < 2) throw new Error("El CSV no contiene filas para importar.");
+        const headers = parsed[0].map(v => v.trim().toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, ""));
+        const find = (...names) => headers.findIndex(h => names.some(n => h.includes(n)));
+        const idx = {
+          date: find("fecha del correo", "fecha de registro", "fecha del pago"),
+          sender: find("remitente"),
+          subject: find("asunto"),
+          file: find("nombre del adjunto", "archivo"),
+          link: find("archivo en drive"),
+          status: find("estado"),
+          message: find("id del mensaje")
+        };
+        if (idx.file < 0 && idx.sender < 0) throw new Error("No reconozco las columnas de la planilla Copello.");
+        const existing = new Set(payments.map(p => p.sourceKey).filter(Boolean));
+        let added = 0, skipped = 0;
+        for (const values of parsed.slice(1)) {
+          const get = key => idx[key] >= 0 ? String(values[idx[key]] || "").trim() : "";
+          const fileName = get("file");
+          const sender = get("sender");
+          const messageId = get("message");
+          const sourceKey = messageId ? messageId + "|" + fileName : [get("date"), sender, get("subject"), fileName].join("|");
+          if (!fileName && !sender) continue;
+          if (existing.has(sourceKey)) { skipped++; continue; }
+          existing.add(sourceKey);
+          payments.push({
+            id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+            sourceKey,
+            date: get("date"),
+            amount: "",
+            payer: sender || "No identificado",
+            sender,
+            file: fileName + (get("link") ? " — " + get("link") : ""),
+            status: get("status") || "Recibido — pendiente de verificar",
+            subject: get("subject")
+          });
+          added++;
+        }
+        localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments));
+        renderPayments();
+        showToast("Importados: " + added + ". Omitidos por repetición: " + skipped + ".");
+      } catch (error) {
+        showToast("No se pudo importar: " + error.message);
+      } finally {
+        event.target.value = "";
+      }
     });
     $("#export-payments").addEventListener("click", () => {
       const cols = ["Fecha del pago","Importe (ARS)","Nombre del pagador","Remitente del correo","Archivo","Estado"];
