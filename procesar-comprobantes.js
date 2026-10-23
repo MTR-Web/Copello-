@@ -118,7 +118,7 @@ async function processFile(file){
  const operation=parseOperation(text);
  const dup=operation&&receipts.some(r=>normalizeOperation(r.operation)===normalizeOperation(operation));
  const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);const sender=parsePerson(text);const payerMatch=text.match(/(?:pagador|ordenante|beneficiario|titular)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\x27 -]{3,60})/i);const payer=payerMatch?payerMatch[1].trim():sender;
- return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer,sender,unit,building:matched?.building||"",matchedName:matched?.name||"",text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
+ return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer,sender,unit,building:matched?.building||"",matchedName:matched?.name||"",text,status:dup?"Duplicado posible":sameAmount?"Importe coincide — falta verificar acreditación":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
 }
 $("#process-files").addEventListener("click",async()=>{
  const files=[...$("#receipt-files").files];if(!files.length)return;
