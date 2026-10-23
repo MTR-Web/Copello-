@@ -42,41 +42,33 @@ function parseAmount(text){
  return "";
 }
 function parseDate(text){
- const monthNames="enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(" ");
- const namedDate=text.match(/\\b(\\d{1,2})\\s*[\\/.-]\\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\\s*[\\/.-]\\s*(20\\d{2})\\b/i);
- if(namedDate)return String(namedDate[1]).padStart(2,"0")+"/"+String(monthNames.indexOf(namedDate[2].toLowerCase())+1).padStart(2,"0")+"/"+namedDate[3];
- const patterns=[/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})\b/,/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/];
- let m=text.match(patterns[0]);if(m)return String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3];
- m=text.match(patterns[1]);if(m)return String(m[3]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[1];
  const months="enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(" ");
- const re=new RegExp(String.raw`\b(\d{1,2})\s*(?:de\s*)?(`+months.join("|")+String.raw`)\s*(?:de\s*)?(20\d{2})?`,"i");m=text.toLowerCase().match(re);
+ const named=text.match(/\b(\d{1,2})\s*[\/.-]\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s*[\/.-]\s*(20\d{2})\b/i);
+ if(named)return String(named[1]).padStart(2,"0")+"/"+String(months.indexOf(named[2].toLowerCase())+1).padStart(2,"0")+"/"+named[3];
+ let m=text.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d{2})\b/);
+ if(m)return String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3];
+ m=text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+ if(m)return String(m[3]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[1];
+ const re=new RegExp("\\b(\\d{1,2})\\s*(?:de\\s*)?("+months.join("|")+")\\s*(?:de\\s*)?(20\\d{2})?","i");
+ m=text.toLowerCase().match(re);
  if(m)return String(m[1]).padStart(2,"0")+"/"+String(months.indexOf(m[2])+1).padStart(2,"0")+"/"+(m[3]||String(new Date().getFullYear()));
  return "";
 }
-function normalizeOperation(value){
- return String(value??"").replace(/\\D/g,"");
-}
+function normalizeOperation(value){return String(value??"").replace(/\D/g,"");}
 function parseOperation(text){
- // Priorizar identificadores explícitamente rotulados como operación/transacción.
- const labeled=/(?:n[uú]mero\s+de\s+)?(?:operaci[oó]n|transacci[oó]n|id\s+de\s+operaci[oó]n|nro\.?\s*operaci[oó]n)[^\\d]{0,24}(\\d[\\d .-]{5,})/ig;
- let m;
- while((m=labeled.exec(text))!==null){
-  const candidate=normalizeOperation(m[1]);
-  if(candidate.length>=6 && candidate.length<=24)return candidate;
- }
- // Evitar confundir CVU/CBU/CUIL/CUIT con un número de operación.
- const lines=String(text??"").split(/\\r?\\n/);
- for(let i=0;i<lines.length;i++){
-  if(/\\b(?:cvu|cbu|cuil|cuit)\\b/i.test(lines[i]))continue;
-  const candidates=lines[i].match(/\\b\\d(?:[\\d .-]{8,}\\d)\\b/g)||[];
-  for(const raw of candidates){
-   const candidate=normalizeOperation(raw);
-   if(candidate.length>=10 && candidate.length<=24 && !/\\b(?:cvu|cbu|cuil|cuit)\\b/i.test(lines.slice(Math.max(0,i-1),i+1).join(" ")))return candidate;
-  }
- }
+ const labeled=/(?:n[uú]mero\s+de\s+)?(?:operaci[oó]n|transacci[oó]n|id\s+de\s+operaci[oó]n|nro\.?\s*operaci[oó]n)[^\d]{0,24}(\d[\d .-]{5,})/ig;
+ let m;while((m=labeled.exec(text))!==null){const candidate=normalizeOperation(m[1]);if(candidate.length>=6&&candidate.length<=24)return candidate;}
+ const lines=String(text??"").split(/\r?\n/);
+ for(let i=0;i<lines.length;i++){if(/\b(?:cvu|cbu|cuil|cuit)\b/i.test(lines[i]))continue;const candidates=lines[i].match(/\b\d(?:[\d .-]{8,}\d)\b/g)||[];for(const raw of candidates){const candidate=normalizeOperation(raw);if(candidate.length>=10&&candidate.length<=24&&!/\b(?:cvu|cbu|cuil|cuit)\b/i.test(lines.slice(Math.max(0,i-1),i+1).join(" ")))return candidate;}}
  return "";
 }
-
+function parsePerson(text){
+ const lines=String(text??"").split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ const labeled=lines.find(line=>/^(?:pagador|ordenante|remitente|de|titular|nombre)\s*[:\-]\s*[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){1,3}$/i.test(line));
+ if(labeled)return labeled.replace(/^(?:pagador|ordenante|remitente|de|titular|nombre)\s*[:\-]\s*/i,"").trim();
+ const candidates=lines.filter(line=>/^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\x27-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\x27-]+){1,3}$/.test(line)&&!/^(?:comprobante de transferencia|mercado pago|transferencia realizada|motivo varios)$/i.test(line));
+ return candidates.length===1?candidates[0]:"";
+}
 function matchUnit(text){
  if(!masterRows.length)return null;
  const t=norm(text);const col=Number($("#unit-column").value);
@@ -110,8 +102,8 @@ async function processFile(file){
  $("#extracted-text").textContent=text||"No se pudo reconocer texto en este archivo.";
  const operation=parseOperation(text);
  const dup=operation&&receipts.some(r=>normalizeOperation(r.operation)===normalizeOperation(operation));
- const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);
- return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer:"",sender:"",unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
+ const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);const sender=parsePerson(text);const payerMatch=text.match(/(?:pagador|ordenante|beneficiario|titular)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\x27 -]{3,60})/i);const payer=payerMatch?payerMatch[1].trim():sender;
+ return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer,sender,unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
 }
 $("#process-files").addEventListener("click",async()=>{
  const files=[...$("#receipt-files").files];if(!files.length)return;
