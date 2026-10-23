@@ -106,14 +106,16 @@
       try {
         const raw = (await file.text()).replace(/^\uFEFF/, "");
         const parseCsv = text => {
-          const delimiter = (text.split(/\\r?\\n/, 1)[0].split(";").length > text.split(/\\r?\\n/, 1)[0].split(",").length) ? ";" : ",";\n          const rows = []; let row = [], cell = "", quoted = false;
+          const firstLine = text.split(/\r?\n/, 1)[0];
+          const delimiter = firstLine.split(";").length > firstLine.split(",").length ? ";" : ",";
+          const rows = []; let row = [], cell = "", quoted = false;
           for (let i = 0; i < text.length; i++) {
             const ch = text[i], next = text[i + 1];
             if (ch === '"' && quoted && next === '"') { cell += '"'; i++; }
             else if (ch === '"') quoted = !quoted;
-            else if ((ch === delimiter) && !quoted) { row.push(cell); cell = ""; }
-            else if ((ch === "\\n" || ch === "\\r") && !quoted) {
-              if (ch === "\\r" && next === "\\n") i++;
+            else if (ch === delimiter && !quoted) { row.push(cell); cell = ""; }
+            else if ((ch === "\n" || ch === "\r") && !quoted) {
+              if (ch === "\r" && next === "\n") i++;
               row.push(cell); if (row.some(v => v.trim())) rows.push(row);
               row = []; cell = "";
             } else cell += ch;
