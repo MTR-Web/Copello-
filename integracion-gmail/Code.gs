@@ -35,7 +35,17 @@ function procesarCorreosCopello() {
   // No excluimos hilos ya procesados: Gmail etiqueta conversaciones enteras y
   // podría ocultar mensajes nuevos dentro de un hilo anterior. La clave única evita duplicados.
   const query = "label:" + COPPELLO_CONFIG.paymentLabel + " has:attachment";
-  const threads = GmailApp.search(query, 0, 100);
+  // Recorre los hilos por lotes para que una bandeja con más de 100 hilos no deje
+  // los más antiguos sin procesar. Las claves únicas hacen segura la revisión repetida.
+  const properties = PropertiesService.getScriptProperties();
+  let offset = Math.max(0, Number(properties.getProperty("COPPELLO_THREAD_OFFSET") || 0));
+  let threads = GmailApp.search(query, offset, 100);
+  if (!threads.length && offset > 0) {
+    offset = 0;
+    threads = GmailApp.search(query, 0, 100);
+  }
+  if (threads.length === 100) properties.setProperty("COPPELLO_THREAD_OFFSET", String(offset + threads.length));
+  else properties.deleteProperty("COPPELLO_THREAD_OFFSET");
   const knownKeys = getKnownAttachmentKeys_(sheet);
   let messagesProcessed = 0, attachmentsSaved = 0, rowsAdded = 0, draftsCreated = 0, duplicatesSkipped = 0;
   const errors = [];
