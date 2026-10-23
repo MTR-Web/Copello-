@@ -146,5 +146,6 @@ $("#download-copy").addEventListener("click",()=>{
  toast("Se descargó una copia. El Excel original quedó intacto.");
 });
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$("#open-gmail-drafts").addEventListener("click",()=>{window.open("https://mail.google.com/mail/u/0/#drafts","_blank","noopener");toast("Abrí Borradores de Gmail. Revisá el destinatario y el comprobante antes de enviar.");});
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 })();
