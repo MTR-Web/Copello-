@@ -3,7 +3,8 @@
  *
  * 1) Ejecutá prepararCopelloGmail() una vez.
  * 2) Aplicá la etiqueta Gmail "Copello_Pagos" a los mensajes.
- * 3) Ejecutá procesarCorreosCopello() cuando quieras actualizar el registro.
+ * 3) Ejecutá procesarCorreosCopello() para actualizar el registro.
+ * 4) Opcional: ejecutá instalarTriggerCopello() para revisar la etiqueta cada 15 minutos.
  *
  * El registro de Google Sheets se crea en Mi unidad (raíz de Drive),
  * separado de la carpeta Copello_Comprobantes. Nunca envía correos.
@@ -72,7 +73,6 @@ function procesarCorreosCopello() {
             "Recibido — pendiente de verificar", message.getId(), uniqueKey
           ]);
           knownKeys.add(uniqueKey);
-          knownKeys.add(message.getId() + "|" + originalName);
           rowsAdded++;
           newAttachmentsForMessage++;
         });
@@ -110,6 +110,27 @@ function procesarCorreosCopello() {
   return summary;
 }
 
+
+/** Instala una revisión automática cada 15 minutos. Ejecutar y autorizar una vez. */
+function instalarTriggerCopello() {
+  const triggers = ScriptApp.getProjectTriggers();
+  const exists = triggers.some(function(trigger) {
+    return trigger.getHandlerFunction() === "procesarCorreosCopello";
+  });
+  if (!exists) {
+    ScriptApp.newTrigger("procesarCorreosCopello").timeBased().everyMinutes(15).create();
+  }
+  Logger.log(exists ? "Ya existía el disparador automático." : "Revisión automática instalada: cada 15 minutos.");
+}
+
+/** Elimina únicamente los disparadores de procesamiento de Copello. */
+function quitarTriggerCopello() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === "procesarCorreosCopello") ScriptApp.deleteTrigger(trigger);
+  });
+  Logger.log("Se quitaron los disparadores automáticos de Copello.");
+}
+
 function getKnownAttachmentKeys_(sheet) {
   const keys = new Set();
   const lastRow = sheet.getLastRow();
@@ -117,7 +138,8 @@ function getKnownAttachmentKeys_(sheet) {
   // J contiene la clave nueva; E e I permiten reconocer filas de la versión anterior.
   sheet.getRange(2, 1, lastRow - 1, Math.max(10, sheet.getLastColumn())).getValues().forEach(function(row) {
     if (row[9]) keys.add(String(row[9]));
-    if (row[8] && row[4]) keys.add(String(row[8]) + "|" + String(row[4]));
+    // Las filas antiguas no tenían clave única; usar la clave histórica solo para ellas.
+    else if (row[8] && row[4]) keys.add(String(row[8]) + "|" + String(row[4]));
   });
   return keys;
 }
