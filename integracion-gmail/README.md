@@ -7,7 +7,7 @@ Esta integración gratuita usa Google Apps Script, Gmail, Google Drive y Google 
 - Solo busca correos con la etiqueta de Gmail `Copello_Pagos` y adjuntos compatibles.
 - Guarda los adjuntos PDF e imágenes en la carpeta de Drive `Copello_Comprobantes`.
 - Agrega una fila por cada adjunto a la planilla `Copello_Registro_Comprobantes`, con fecha, remitente, asunto, nombre/tipo de archivo, enlace al archivo, estado y referencia del mensaje.
-- Crea un borrador de respuesta al mensaje original con un acuse de recepción.
+- Crea un borrador de respuesta al mensaje original con un acuse de recepción y, si se habilita el servicio avanzado Gmail API, intenta conservar la firma predeterminada de Gmail.
 - Marca el hilo como `Copello_Procesado` cuando el procesamiento termina sin errores; la etiqueta es informativa y no impide detectar mensajes nuevos en hilos antiguos.
 - Evita registrar dos veces un mismo adjunto mediante una clave única, incluso al volver a ejecutar el proceso.
 - **No envía correos automáticamente.**
@@ -27,6 +27,7 @@ La página tiene una opción para importar el CSV exportado desde la planilla de
 2. Abrí [Google Apps Script](https://script.google.com/) y entrá al proyecto existente de Copello. Si no existe, creá uno nuevo.
 3. Abrí `Code.gs`, reemplazá todo su contenido por el archivo de este repositorio y guardá.
 4. En el selector de funciones elegí `prepararCopelloGmail` y presioná Ejecutar. Revisá y autorizá los permisos de Gmail, Drive y Sheets.
+5. Para intentar conservar la firma habitual en los borradores, abrí **Servicios** (+) en el editor de Apps Script y agregá **Gmail API**. Si no la habilitás, el script seguirá funcionando, pero los borradores podrían quedar sin firma; revisalos antes de enviar.
 5. En Gmail, elegí uno o dos correos de prueba que tengan comprobantes PDF o imágenes y aplicales la etiqueta `Copello_Pagos`.
 6. Volvé a Apps Script, elegí `procesarCorreosCopello` y presioná Ejecutar.
 7. En el registro de ejecución, abrí el enlace de la planilla que aparece en el resultado. La planilla se crea en `Mi unidad` (raíz de Google Drive), fuera de la carpeta `Copello_Comprobantes`, que solo guarda los adjuntos. También podés revisar esa carpeta y los borradores en Gmail.
@@ -42,5 +43,5 @@ La página tiene una opción para importar el CSV exportado desde la planilla de
 - Si hay un error parcial, revisá la planilla, Drive y Borradores antes de volver a ejecutar para evitar registros duplicados.
 - El script no lee importes ni asigna unidades en la planilla. La lectura de importes, fecha, operación, unidad y comparación contra el Excel maestro se hace en `procesar.html`, con heurísticas que deben revisarse manualmente. El registro significa “se recibió un archivo”, no “se confirmó el pago”.
 - El disparador automático solo procesa mensajes que tengan la etiqueta `Copello_Pagos`; no se recomienda etiquetar automáticamente todo correo con adjuntos. Probá primero con correos controlados.
-- La página web no puede leer la firma guardada en Gmail ni modificar borradores de la cuenta directamente. Los borradores creados por Apps Script deben revisarse en Gmail y, si tu firma no aparece, agregarla antes de enviar.
+- Para leer la firma predeterminada, el script usa el servicio avanzado Gmail API. Si no se habilita, el proceso sigue sin detenerse, pero el borrador puede no incluir la firma; revisalo y agregala antes de enviar si hace falta.
 - El Excel maestro de expensas no se modifica. La página descarga una copia cuando usás el botón correspondiente.
