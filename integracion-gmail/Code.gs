@@ -180,7 +180,21 @@ function getOrCreateRegister_() {
   const storedId = properties.getProperty("COPPELLO_REGISTER_ID");
   let spreadsheet = null;
   if (storedId) {
-    try { spreadsheet = SpreadsheetApp.openById(storedId); } catch (err) { spreadsheet = null; }
+    try {
+      spreadsheet = SpreadsheetApp.openById(storedId);
+      const attachmentFolders = DriveApp.getFoldersByName(COPPELLO_CONFIG.driveFolder);
+      const attachmentFolderId = attachmentFolders.hasNext() ? attachmentFolders.next().getId() : "";
+      if (attachmentFolderId) {
+        const parents = DriveApp.getFileById(storedId).getParents();
+        while (parents.hasNext()) {
+          if (parents.next().getId() === attachmentFolderId) {
+            spreadsheet = null;
+            properties.deleteProperty("COPPELLO_REGISTER_ID");
+            break;
+          }
+        }
+      }
+    } catch (err) { spreadsheet = null; }
   }
   if (!spreadsheet) {
     const files = DriveApp.getFilesByName(COPPELLO_CONFIG.spreadsheetName);
