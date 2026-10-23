@@ -1,45 +1,50 @@
 /**
- * Copello — puente gratuito para Gmail (Google Apps Script)
+ * Copello — registro gratuito de comprobantes recibidos desde Gmail.
  *
- * Uso manual: ejecutá procesarCorreosCopello() desde Apps Script.
- * Solo procesa hilos con la etiqueta Gmail "Copello_Pagos" y adjuntos.
- * Guarda adjuntos en una carpeta de Drive y crea borradores de respuesta.
- * NUNCA envía correos automáticamente.
+ * Uso manual: ejecutá prepararCopelloGmail() una vez y luego
+ * procesarCorreosCopello() cuando quieras actualizar el registro.
+ *
+ * Guarda los adjuntos en Drive y anota cada comprobante en una planilla
+ * de Google Sheets compatible con Excel. No crea ni envía correos.
  */
 const COPPELLO_CONFIG = {
   paymentLabel: "Copello_Pagos",
   processedLabel: "Copello_Procesado",
   driveFolder: "Copello_Comprobantes",
-  acknowledgement:
-    "Hola, recibimos tu comprobante. Gracias. Este mensaje confirma únicamente la recepción del archivo y no la acreditación del pago."
+  spreadsheetName: "Copello_Registro_Comprobantes",
+  sheetName: "Comprobantes recibidos"
 };
 
 function prepararCopelloGmail() {
   getOrCreateLabel_(COPPELLO_CONFIG.paymentLabel);
   getOrCreateLabel_(COPPELLO_CONFIG.processedLabel);
   getOrCreateFolder_(COPPELLO_CONFIG.driveFolder);
+  getOrCreateRegister_();
   Logger.log(
-    'Preparado. En Gmail, aplicá la etiqueta "' +
+    'Preparado. Aplicá la etiqueta "' +
       COPPELLO_CONFIG.paymentLabel +
-      '" a los correos que quieras procesar.'
+      '" en Gmail a los correos que contienen comprobantes.'
   );
 }
 
 function procesarCorreosCopello() {
-  const paymentLabel = getOrCreateLabel_(COPPELLO_CONFIG.paymentLabel);
   const processedLabel = getOrCreateLabel_(COPPELLO_CONFIG.processedLabel);
   const folder = getOrCreateFolder_(COPPELLO_CONFIG.driveFolder);
+  const register = getOrCreateRegister_();
+  const sheet = register.getSheetByName(COPPELLO_CONFIG.sheetName);
   const query =
     "label:" + COPPELLO_CONFIG.paymentLabel +
     " has:attachment -label:" + COPPELLO_CONFIG.processedLabel;
   const threads = GmailApp.search(query, 0, 50);
   let messagesProcessed = 0;
   let attachmentsSaved = 0;
-  let draftsCreated = 0;
+  let rowsAdded = 0;
   const errors = [];
 
   threads.forEach(function(thread) {
     let threadHadError = false;
+    let threadHadReceipt = false;
+
     thread.getMessages().forEach(function(message) {
       try {
         const attachments = message.getAttachments({
@@ -48,6 +53,7 @@ function procesarCorreosCopello() {
         }).filter(isSupportedReceipt_);
 
         if (!attachments.length) return;
+        threadHadReceipt = true;
 
         attachments.forEach(function(attachment) {
           const safeName = makeSafeName_(
@@ -57,13 +63,22 @@ function procesarCorreosCopello() {
               "yyyyMMdd_HHmmss"
             ) + "_" + attachment.getName()
           );
-          folder.createFile(attachment.copyBlob()).setName(safeName);
+          const file = folder.createFile(attachment.copyBlob()).setName(safeName);
           attachmentsSaved++;
-        });
 
-        // Crea un borrador de respuesta asociado al mensaje original; no lo envía.
-        message.createDraftReply(COPPELLO_CONFIG.acknowledgement);
-        draftsCreated++;
+          sheet.appendRow([
+            new Date(),
+            message.getDate(),
+            message.getFrom() || "",
+            message.getSubject() || "(sin asunto)",
+            attachment.getName() || "",
+            attachment.getContentType() || "",
+            file.getUrl(),
+            "Recibido — pendiente de verificar",
+            message.getId()
+          ]);
+          rowsAdded++;
+        });
         messagesProcessed++;
       } catch (err) {
         threadHadError = true;
@@ -74,23 +89,73 @@ function procesarCorreosCopello() {
       }
     });
 
-    // Solo marca el hilo si se completó sin errores.
-    if (!threadHadError) thread.addLabel(processedLabel);
+    // Solo etiqueta el hilo si hubo comprobantes y no hubo errores.
+    // Así no se marca como procesado un correo sin adjuntos compatibles.
+    if (threadHadReceipt && !threadHadError) thread.addLabel(processedLabel);
   });
 
   const summary = [
     "Copello terminó la revisión manual de Gmail.",
     "Hilos encontrados: " + threads.length,
-    "Mensajes procesados: " + messagesProcessed,
-    "Adjuntos guardados: " + attachmentsSaved,
-    "Borradores creados: " + draftsCreated,
+    "Mensajes con comprobantes: " + messagesProcessed,
+    "Adjuntos guardados en Drive: " + attachmentsSaved,
+    "Filas agregadas al registro: " + rowsAdded,
+    "Planilla: " + register.getUrl(),
     errors.length ? "Errores:\n- " + errors.join("\n- ") : "Errores: ninguno",
     "",
-    "No se envió ningún correo."
+    "No se crearon ni enviaron correos."
   ].join("\n");
 
   Logger.log(summary);
   return summary;
+}
+
+function getOrCreateRegister_() {
+  const properties = PropertiesService.getScriptProperties();
+  const storedId = properties.getProperty("COPPELLO_REGISTER_ID");
+  let spreadsheet = null;
+
+  if (storedId) {
+    try {
+      spreadsheet = SpreadsheetApp.openById(storedId);
+    } catch (err) {
+      spreadsheet = null;
+    }
+  }
+
+  if (!spreadsheet) {
+    const files = DriveApp.getFilesByName(COPPELLO_CONFIG.spreadsheetName);
+    if (files.hasNext()) {
+      const file = files.next();
+      spreadsheet = SpreadsheetApp.openById(file.getId());
+    } else {
+      spreadsheet = SpreadsheetApp.create(COPPELLO_CONFIG.spreadsheetName);
+    }
+    properties.setProperty("COPPELLO_REGISTER_ID", spreadsheet.getId());
+  }
+
+  let sheet = spreadsheet.getSheetByName(COPPELLO_CONFIG.sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.getSheets()[0];
+    sheet.setName(COPPELLO_CONFIG.sheetName);
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow([
+      "Fecha de registro",
+      "Fecha del correo",
+      "Remitente",
+      "Asunto",
+      "Nombre del adjunto",
+      "Tipo de archivo",
+      "Archivo en Drive",
+      "Estado",
+      "ID del mensaje"
+    ]);
+    sheet.setFrozenRows(1);
+  }
+
+  return spreadsheet;
 }
 
 function isSupportedReceipt_(attachment) {
