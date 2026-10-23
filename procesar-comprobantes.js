@@ -61,7 +61,7 @@ function matchUnit(text){
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
  return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
 }
-function moneyNumber(value){const s=String(value??"").replace(/[^\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\./g,"").replace(",","."):s.replace(/\.(?=\d{3}(?:\\D|$))/g,"");return Number(normalized);}
+function moneyNumber(value){const s=String(value??"").replace(/[^\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\./g,"").replace(",","."):s.replace(/\.(?=\d{3}(?:\D|$))/g,"");return Number(normalized);}
 async function readImage(file){
  if(!window.Tesseract)throw Error("No se pudo cargar el OCR. Revisá la conexión a internet.");
  const result=await Tesseract.recognize(file,"spa+eng",{logger:m=>{if(m.status==="recognizing text")setProgress(5+Math.round(m.progress*70),"Reconociendo texto de "+file.name+"…");}});
@@ -88,7 +88,7 @@ async function processFile(file){
  const operation=parseOperation(text);
  const dup=operation&&receipts.some(r=>r.operation===operation);
  const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);
- return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer:"",sender:"",unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
+ return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer:"",sender:"",unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
 }
 $("#process-files").addEventListener("click",async()=>{
  const files=[...$("#receipt-files").files];if(!files.length)return;
@@ -107,7 +107,7 @@ function render(){
  body.innerHTML=receipts.map(r=>{
  const duplicate=r.operation&&receipts.filter(x=>x.operation===r.operation).length>1;
  const status=duplicate?"Duplicado posible":r.status;
- const cls=duplicate?"status-duplicate":status==="OK"?"status-ok":"status-review";
+ const cls=duplicate?"status-duplicate":status.startsWith("OK")?"status-ok":"status-review";
  return '<tr data-id="'+esc(r.id)+'"><td>'+esc(r.file)+'</td><td><input data-field="amount" value="'+esc(r.amount)+'" placeholder="Revisar importe"></td><td><input data-field="date" value="'+esc(r.date)+'" placeholder="DD/MM/AAAA"></td><td><input data-field="operation" value="'+esc(r.operation)+'" placeholder="N.º operación"></td><td><input data-field="payer" value="'+esc(r.payer)+'" placeholder="Nombre pagador"><input data-field="sender" value="'+esc(r.sender)+'" placeholder="Remitente"></td><td><select data-field="unit"><option value="">Pendiente</option>'+masterRows.map(m=>'<option value="'+esc(m.unit)+'" '+(m.unit===r.unit?'selected':'')+'>'+esc([m.unit,m.name,m.building].filter(Boolean).join(" — "))+'</option>').join("")+'</select></td><td><span class="'+cls+'">'+esc(status)+'</span></td><td><button class="secondary-button draft-btn" data-draft="'+esc(r.id)+'">Ver texto</button><button class="row-delete" data-remove="'+esc(r.id)+'" title="Quitar">×</button></td></tr>';
  }).join("");
  $("#download-copy").disabled=!workbook;$("#export-csv").disabled=!receipts.length;
