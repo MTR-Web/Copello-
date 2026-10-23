@@ -53,10 +53,30 @@ function parseDate(text){
  if(m)return String(m[1]).padStart(2,"0")+"/"+String(months.indexOf(m[2])+1).padStart(2,"0")+"/"+(m[3]||String(new Date().getFullYear()));
  return "";
 }
-function parseOperation(text){
- const patterns=[/(?:operaci[oó]n|transacci[oó]n|comprobante|nro\.?|n[uú]mero|id)[^\d]{0,18}(\d{6,})/i,/\b(\d{10,})\b/];
- for(const re of patterns){const m=text.match(re);if(m)return m[1];}return "";
+function normalizeOperation(value){
+ return String(value??"").replace(/\\D/g,"");
 }
+function parseOperation(text){
+ // Priorizar identificadores explícitamente rotulados como operación/transacción.
+ const labeled=/(?:n[uú]mero\s+de\s+)?(?:operaci[oó]n|transacci[oó]n|id\s+de\s+operaci[oó]n|nro\.?\s*operaci[oó]n)[^\\d]{0,24}(\\d[\\d .-]{5,})/ig;
+ let m;
+ while((m=labeled.exec(text))!==null){
+  const candidate=normalizeOperation(m[1]);
+  if(candidate.length>=6 && candidate.length<=24)return candidate;
+ }
+ // Evitar confundir CVU/CBU/CUIL/CUIT con un número de operación.
+ const lines=String(text??"").split(/\\r?\\n/);
+ for(let i=0;i<lines.length;i++){
+  if(/\\b(?:cvu|cbu|cuil|cuit)\\b/i.test(lines[i]))continue;
+  const candidates=lines[i].match(/\\b\\d(?:[\\d .-]{8,}\\d)\\b/g)||[];
+  for(const raw of candidates){
+   const candidate=normalizeOperation(raw);
+   if(candidate.length>=10 && candidate.length<=24 && !/\\b(?:cvu|cbu|cuil|cuit)\\b/i.test(lines.slice(Math.max(0,i-1),i+1).join(" ")))return candidate;
+  }
+ }
+ return "";
+}
+
 function matchUnit(text){
  if(!masterRows.length)return null;
  const t=norm(text);const col=Number($("#unit-column").value);
