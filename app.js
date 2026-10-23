@@ -73,7 +73,24 @@
     const b = buildings.find(item => item.id === selectedBuildingId);
     if (!b) { go("buildings"); return; }
     const color = validColor(b.color);
-    $("#app-content").innerHTML = '<div class="detail-header"><div class="building-symbol" style="--building-color:'+color+';--building-tint:'+color+'1A">▤</div><div><p class="eyebrow">FICHA DEL CONSORCIO</p><h1>'+escapeHtml(b.name)+'</h1><p class="muted">'+escapeHtml(b.address || "Dirección sin cargar")+'</p></div></div><section class="detail-block"><h2>Datos generales</h2><div class="detail-grid"><div class="detail-item"><small>Nombre</small><strong>'+escapeHtml(b.name)+'</strong></div><div class="detail-item"><small>Unidades</small><strong>'+Number(b.units || 0)+'</strong></div><div class="detail-item"><small>Dirección</small><strong>'+escapeHtml(b.address || "Sin cargar")+'</strong></div><div class="detail-item"><small>Color identificador</small><strong>'+color.toUpperCase()+'</strong></div></div></section><section class="detail-block"><h2>Notas</h2><p class="muted">'+escapeHtml(b.notes || "Todavía no hay notas para este consorcio.")+'</p><div class="form-actions"><button class="secondary-button" data-view="buildings">Volver a consorcios</button><button class="primary-button" data-edit="'+escapeHtml(b.id)+'">Editar ficha</button></div></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Próximos módulos</strong><p>Unidades y propietarios, expensas, pagos, documentación e integración con Gmail se conectarán en etapas posteriores.</p></div></section>';
+    const unitRecords = Array.isArray(b.unitRecords) ? b.unitRecords : [];
+    const unitRows = unitRecords.map(u => '<tr><td><strong>'+escapeHtml(u.label)+'</strong></td><td>'+escapeHtml(u.floor || '—')+'</td><td>'+escapeHtml(u.owner || 'Sin titular cargado')+'</td><td>'+escapeHtml(u.contact || '—')+'</td><td>'+escapeHtml(u.coefficient || '—')+'</td><td><button class="row-delete" data-unit-delete="'+escapeHtml(u.id)+'" title="Eliminar unidad" aria-label="Eliminar unidad">×</button></td></tr>').join('');
+    $("#app-content").innerHTML = '<div class="detail-header"><div class="building-symbol" style="--building-color:'+color+';--building-tint:'+color+'1A">▤</div><div><p class="eyebrow">FICHA DEL CONSORCIO</p><h1>'+escapeHtml(b.name)+'</h1><p class="muted">'+escapeHtml(b.address || "Dirección sin cargar")+'</p></div></div><section class="detail-block"><h2>Datos generales</h2><div class="detail-grid"><div class="detail-item"><small>Nombre</small><strong>'+escapeHtml(b.name)+'</strong></div><div class="detail-item"><small>Unidades declaradas</small><strong>'+Number(b.units || 0)+'</strong></div><div class="detail-item"><small>Unidades cargadas</small><strong>'+unitRecords.length+'</strong></div><div class="detail-item"><small>Dirección</small><strong>'+escapeHtml(b.address || "Sin cargar")+'</strong></div><div class="detail-item"><small>Color identificador</small><strong>'+color.toUpperCase()+'</strong></div></div></section><section class="detail-block"><div class="table-heading"><div><h2>Unidades y titulares</h2><p class="muted">Cargá departamentos, locales u otras unidades funcionales y sus datos de contacto.</p></div></div><form id="unit-form"><div class="detail-grid"><div><label for="unit-label">Unidad / departamento *</label><input id="unit-label" name="label" required maxlength="40" placeholder="Ej. 4° B o Local 2"></div><div><label for="unit-floor">Piso / ubicación</label><input id="unit-floor" name="floor" maxlength="40" placeholder="Ej. 4.º piso"></div><div><label for="unit-owner">Titular / propietario</label><input id="unit-owner" name="owner" maxlength="100" placeholder="Nombre y apellido"></div><div><label for="unit-contact">Contacto</label><input id="unit-contact" name="contact" maxlength="120" placeholder="Correo o teléfono"></div><div><label for="unit-coefficient">Coeficiente (%)</label><input id="unit-coefficient" name="coefficient" inputmode="decimal" placeholder="Ej. 2,35"></div></div><div class="form-actions"><button type="submit" class="primary-button">＋ Agregar unidad</button></div></form><div class="table-wrap"><table class="payments-table"><thead><tr><th>Unidad</th><th>Piso</th><th>Titular</th><th>Contacto</th><th>Coeficiente</th><th></th></tr></thead><tbody>'+(unitRows || '<tr><td colspan="6" class="table-empty">Todavía no hay unidades cargadas.</td></tr>')+'</tbody></table></div></section><section class="detail-block"><h2>Notas</h2><p class="muted">'+escapeHtml(b.notes || "Todavía no hay notas para este consorcio.")+'</p><div class="form-actions"><button class="secondary-button" data-view="buildings">Volver a consorcios</button><button class="primary-button" data-edit="'+escapeHtml(b.id)+'">Editar ficha</button></div></section><section class="note-panel"><span class="note-icon">i</span><div><strong>Datos guardados localmente</strong><p>Las unidades y titulares se guardan en este navegador junto con la ficha del consorcio. Todavía no se sincronizan con otros equipos ni generan expensas automáticamente.</p></div></section>';
+    $("#unit-form").addEventListener("submit", event => {
+      event.preventDefault();
+      const fd = new FormData(event.currentTarget);
+      const label = String(fd.get("label") || "").trim();
+      if (!label) return;
+      if (!Array.isArray(b.unitRecords)) b.unitRecords = [];
+      if (b.unitRecords.some(u => String(u.label).toLowerCase() === label.toLowerCase())) {
+        showToast("Ya existe una unidad con ese nombre en este consorcio.");
+        return;
+      }
+      b.unitRecords.push({id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), label, floor:String(fd.get("floor")||"").trim(), owner:String(fd.get("owner")||"").trim(), contact:String(fd.get("contact")||"").trim(), coefficient:String(fd.get("coefficient")||"").trim()});
+      saveBuildings();
+      renderDetail();
+      showToast("Unidad agregada.");
+    });
   }
   function renderSettings() {
     const colors = config.colors || {};
@@ -220,6 +237,15 @@
       payments = payments.filter(item => item.id !== p.id);
       try { localStorage.setItem(PAYMENTS_KEY, JSON.stringify(payments)); } catch (_) {}
       renderPayments(); showToast("Registro eliminado."); return;
+    }
+    const unitDelete = event.target.closest("[data-unit-delete]");
+    if (unitDelete) {
+      const b = buildings.find(item => item.id === selectedBuildingId);
+      if (!b || !Array.isArray(b.unitRecords)) return;
+      const unit = b.unitRecords.find(item => item.id === unitDelete.dataset.unitDelete);
+      if (!unit || !window.confirm('¿Eliminar la unidad "' + unit.label + '"?')) return;
+      b.unitRecords = b.unitRecords.filter(item => item.id !== unit.id);
+      saveBuildings(); renderDetail(); showToast("Unidad eliminada."); return;
     }
     const deleteButton = event.target.closest("[data-delete]");
     if (deleteButton) {
