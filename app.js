@@ -58,7 +58,7 @@
   }
   function buildingCard(b) {
     const color = validColor(b.color);
-    return '<article class="building-card"><div class="building-card-head"><div class="building-symbol" style="--building-color:'+color+';--building-tint:'+color+'1A">▤</div><button class="building-menu" data-edit="'+escapeHtml(b.id)+'" aria-label="Editar '+escapeHtml(b.name)+'" title="Editar consorcio">⋯</button></div><h3>'+escapeHtml(b.name)+'</h3><p class="building-address">'+escapeHtml(b.address || "Dirección sin cargar")+'</p><div class="building-meta"><span>Unidades</span><strong>'+Number(b.units || 0)+'</strong></div><button class="open-building" data-open="'+escapeHtml(b.id)+'">Abrir consorcio →</button></article>';
+    return '<article class="building-card"><div class="building-card-head"><div class="building-symbol" style="--building-color:'+color+';--building-tint:'+color+'1A">▤</div><div class="building-actions"><button class="building-menu" data-edit="'+escapeHtml(b.id)+'" aria-label="Editar '+escapeHtml(b.name)+'" title="Editar consorcio">✎</button><button class="building-delete" data-delete="'+escapeHtml(b.id)+'" aria-label="Eliminar '+escapeHtml(b.name)+'" title="Eliminar consorcio">×</button></div></div><h3>'+escapeHtml(b.name)+'</h3><p class="building-address">'+escapeHtml(b.address || "Dirección sin cargar")+'</p><div class="building-meta"><span>Unidades</span><strong>'+Number(b.units || 0)+'</strong></div><button class="open-building" data-open="'+escapeHtml(b.id)+'">Abrir consorcio →</button></article>';
   }
   function renderDashboard() {
     const units = buildings.reduce((sum, b) => sum + (Number(b.units) || 0), 0);
@@ -126,6 +126,20 @@
     const viewButton = event.target.closest("[data-view]");
     if (viewButton) { go(viewButton.dataset.view); return; }
     if (event.target.closest("#add-building-top")) { openModal(); return; }
+    const deleteButton = event.target.closest("[data-delete]");
+    if (deleteButton) {
+      const b = buildings.find(item => item.id === deleteButton.dataset.delete);
+      if (!b) return;
+      const confirmed = window.confirm('¿Eliminar el consorcio "' + b.name + '" de esta demostración? Esta acción no se puede deshacer.');
+      if (!confirmed) return;
+      buildings = buildings.filter(item => item.id !== b.id);
+      if (selectedBuildingId === b.id) selectedBuildingId = null;
+      saveBuildings();
+      if (currentView === "detail") currentView = "buildings";
+      render();
+      showToast("Consorcio eliminado de este navegador.");
+      return;
+    }
     const editButton = event.target.closest("[data-edit]");
     if (editButton) { const b = buildings.find(item => item.id === editButton.dataset.edit); if (b) openModal(b); return; }
     const openButton = event.target.closest("[data-open]");
