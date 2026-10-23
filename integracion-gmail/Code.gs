@@ -54,7 +54,7 @@ function procesarCorreosCopello() {
         attachments.forEach(function(attachment, attachmentIndex) {
           const originalName = attachment.getName() || "comprobante";
           const uniqueKey = [message.getId(), attachmentIndex, originalName, attachment.getSize()].join("|");
-          if (knownKeys.has(uniqueKey)) {
+          if (knownKeys.has(uniqueKey) || knownKeys.has(message.getId() + "|" + originalName)) {
             duplicatesSkipped++;
             return;
           }
@@ -72,6 +72,7 @@ function procesarCorreosCopello() {
             "Recibido — pendiente de verificar", message.getId(), uniqueKey
           ]);
           knownKeys.add(uniqueKey);
+          knownKeys.add(message.getId() + "|" + originalName);
           rowsAdded++;
           newAttachmentsForMessage++;
         });
@@ -113,9 +114,10 @@ function getKnownAttachmentKeys_(sheet) {
   const keys = new Set();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return keys;
-  // La columna J contiene la clave única de cada adjunto.
-  sheet.getRange(2, 10, lastRow - 1, 1).getValues().forEach(function(row) {
-    if (row[0]) keys.add(String(row[0]));
+  // J contiene la clave nueva; E e I permiten reconocer filas de la versión anterior.
+  sheet.getRange(2, 1, lastRow - 1, Math.max(10, sheet.getLastColumn())).getValues().forEach(function(row) {
+    if (row[9]) keys.add(String(row[9]));
+    if (row[8] && row[4]) keys.add(String(row[8]) + "|" + String(row[4]));
   });
   return keys;
 }
