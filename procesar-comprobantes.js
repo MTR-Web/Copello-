@@ -46,7 +46,7 @@ function parseDate(text){
  let m=text.match(patterns[0]);if(m)return String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3];
  m=text.match(patterns[1]);if(m)return String(m[3]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[1];
  const months="enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(" ");
- const re=new RegExp("\\b(\d{1,2})\\s*(?:de\\s*)?("+months.join("|")+")\\s*(?:de\\s*)?(20\d{2})?","i");m=text.toLowerCase().match(re);
+ const re=new RegExp(String.raw`\b(\d{1,2})\s*(?:de\s*)?(`+months.join("|")+String.raw`)\s*(?:de\s*)?(20\d{2})?`,"i");m=text.toLowerCase().match(re);
  if(m)return String(m[1]).padStart(2,"0")+"/"+String(months.indexOf(m[2])+1).padStart(2,"0")+"/"+(m[3]||String(new Date().getFullYear()));
  return "";
 }
@@ -108,12 +108,12 @@ function render(){
  const duplicate=r.operation&&receipts.filter(x=>x.operation===r.operation).length>1;
  const status=duplicate?"Duplicado posible":r.status;
  const cls=duplicate?"status-duplicate":status.startsWith("OK")?"status-ok":"status-review";
- return '<tr data-id="'+esc(r.id)+'"><td>'+esc(r.file)+'</td><td><input data-field="amount" value="'+esc(r.amount)+'" placeholder="Revisar importe"></td><td><input data-field="date" value="'+esc(r.date)+'" placeholder="DD/MM/AAAA"></td><td><input data-field="operation" value="'+esc(r.operation)+'" placeholder="N.º operación"></td><td><input data-field="payer" value="'+esc(r.payer)+'" placeholder="Nombre pagador"><input data-field="sender" value="'+esc(r.sender)+'" placeholder="Remitente"></td><td><select data-field="unit"><option value="">Pendiente</option>'+masterRows.map(m=>'<option value="'+esc(m.unit)+'" '+(m.unit===r.unit?'selected':'')+'>'+esc([m.unit,m.name,m.building].filter(Boolean).join(" — "))+'</option>').join("")+'</select></td><td><span class="'+cls+'">'+esc(status)+'</span></td><td><button class="secondary-button draft-btn" data-draft="'+esc(r.id)+'">Ver texto</button><button class="row-delete" data-remove="'+esc(r.id)+'" title="Quitar">×</button></td></tr>';
+ return '<tr data-id="'+esc(r.id)+'"><td>'+esc(r.file)+'</td><td><input data-field="amount" value="'+esc(r.amount)+'" placeholder="Revisar importe"></td><td><input data-field="date" value="'+esc(r.date)+'" placeholder="DD/MM/AAAA"></td><td><input data-field="operation" value="'+esc(r.operation)+'" placeholder="N.º operación"></td><td><input data-field="payer" value="'+esc(r.payer)+'" placeholder="Nombre pagador"><input data-field="sender" value="'+esc(r.sender)+'" placeholder="Remitente"></td><td><select data-field="unit"><option value="">Pendiente</option>'+masterRows.map(m=>'<option value="'+esc(m.unit)+'" '+(m.unit===r.unit?'selected':'')+'>'+esc([m.unit,m.name,m.building].filter(Boolean).join(" — "))+'</option>').join("")+'</select></td><td>'+esc(r.expected||"—")+'<td><span class=</select></td><td><span class="'+cls+'">'+esc(status)+'</span></td><td><button class="secondary-button draft-btn" data-draft="'+esc(r.id)+'">Ver texto</button><button class="row-delete" data-remove="'+esc(r.id)+'" title="Quitar">×</button></td></tr>';
  }).join("");
  $("#download-copy").disabled=!workbook;$("#export-csv").disabled=!receipts.length;
  body.querySelectorAll("input[data-field],select[data-field]").forEach(el=>el.addEventListener("change",()=>{
  const row=el.closest("tr"),r=receipts.find(x=>x.id===row.dataset.id);if(!r)return;r[el.dataset.field]=el.value;
- if(el.dataset.field==="operation"&&el.value&&receipts.filter(x=>x.operation===el.value).length>1)r.status="Duplicado posible";
+ if(el.dataset.field==="operation"&&el.value&&receipts.filter(x=>x.operation===el.value).length>1)r.status="Duplicado posible";render();
  }));
  body.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{receipts=receipts.filter(r=>r.id!==b.dataset.remove);render();}));
  body.querySelectorAll("[data-draft]").forEach(b=>b.addEventListener("click",()=>{const r=receipts.find(x=>x.id===b.dataset.draft);if(!r)return;$("#extracted-text").textContent="Borrador de acuse de recibo (no enviado):\n\n"+ACK+"\n\nArchivo: "+r.file+"\nImporte detectado: "+(r.amount||"pendiente de revisar")+"\nFecha detectada: "+(r.date||"pendiente de revisar")+"\n\n"+(r.text||"");$("#extracted-text").scrollIntoView({behavior:"smooth",block:"center"});}));
