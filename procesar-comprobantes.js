@@ -22,15 +22,15 @@ function populateColumns(){
  if(!workbook)return;
  const sheet=workbook.Sheets[$("#sheet-select").value];const data=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
  const headers=(data[0]||[]).map((v,i)=>String(v||("Columna "+(i+1))));
- setOptions($("#unit-column"),headers);setOptions($("#name-column"),headers,true);setOptions($("#building-column"),headers,true);
+ setOptions($("#unit-column"),headers);setOptions($("#name-column"),headers,true);setOptions($("#building-column"),headers,true);setOptions($("#expected-column"),headers,true);
  const find=terms=>headers.findIndex(h=>terms.some(t=>norm(h).includes(norm(t))));
  const unit=find(["unidad","uf","departamento","depto"]);if(unit>=0)$("#unit-column").value=unit;
  const name=find(["propietario","titular","nombre"]);if(name>=0)$("#name-column").value=name;
- const building=find(["consorcio","edificio","direccion"]);if(building>=0)$("#building-column").value=building;
+ const building=find(["consorcio","edificio","direccion"]);if(building>=0)$("#building-column").value=building;const expected=find(["saldo","importe esperado","a pagar","deuda","balance"]);if(expected>=0)$("#expected-column").value=expected;
  masterRows=data.slice(1).filter(r=>r.some(v=>String(v??"").trim())).map(r=>({unit:String(r[Number($("#unit-column").value)]??"").trim(),name:$("#name-column").value===""?"":String(r[Number($("#name-column").value)]??"").trim(),building:$("#building-column").value===""?"":String(r[Number($("#building-column").value)]??"").trim(),raw:r}));
 }
 $("#sheet-select").addEventListener("change",populateColumns);
-["unit-column","name-column","building-column"].forEach(id=>$("#"+id).addEventListener("change",populateColumns));
+["unit-column","name-column","building-column","expected-column"].forEach(id=>$("#"+id).addEventListener("change",populateColumns));
 $("#receipt-files").addEventListener("change",()=>{
  const files=[...$("#receipt-files").files];$("#file-list").innerHTML=files.length?files.map(f=>"<li>"+esc(f.name)+" ("+Math.round(f.size/1024)+" KB)</li>").join(""):"<li>No se seleccionaron archivos.</li>";
  $("#process-files").disabled=!files.length;setProgress(0,files.length+" archivo(s) listo(s) para analizar.");
