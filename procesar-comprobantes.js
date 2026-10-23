@@ -28,11 +28,19 @@ function populateColumns(){
  const unit=find(["unidad","uf","departamento","depto"]);if(unit>=0)$("#unit-column").value=unit;
  const name=find(["propietario","titular","nombre"]);if(name>=0)$("#name-column").value=name;
  const building=find(["consorcio","edificio","direccion"]);if(building>=0)$("#building-column").value=building;const expected=find(["saldo","importe esperado","a pagar","deuda","balance"]);if(expected>=0)$("#expected-column").value=expected;
+ buildMasterRows();
+}
+function buildMasterRows(){
+ if(!workbook)return;
+ const sheet=workbook.Sheets[$("#sheet-select").value];
+ const data=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
+ const headerIndex=Math.max(0,(Number($("#header-row").value)||1)-1);
  const unitCol=Number($("#unit-column").value), nameCol=$("#name-column").value===""?-1:Number($("#name-column").value), buildingCol=$("#building-column").value===""?-1:Number($("#building-column").value), expectedCol=$("#expected-column").value===""?-1:Number($("#expected-column").value);
  masterRows=data.slice(headerIndex+1).filter(r=>r.some(v=>String(v??"").trim())).map(r=>({unit:String(r[unitCol]??"").trim(),name:nameCol<0?"":String(r[nameCol]??"").trim(),building:buildingCol<0?"":String(r[buildingCol]??"").trim(),expected:expectedCol<0?"":String(r[expectedCol]??"").trim(),raw:r}));
 }
 $("#sheet-select").addEventListener("change",populateColumns);
-["unit-column","name-column","building-column","expected-column","header-row"].forEach(id=>$("#"+id).addEventListener("change",populateColumns));
+$("#header-row").addEventListener("change",populateColumns);
+["unit-column","name-column","building-column","expected-column"].forEach(id=>$("#"+id).addEventListener("change",buildMasterRows));
 $("#receipt-files").addEventListener("change",()=>{
  const files=[...$("#receipt-files").files];$("#file-list").innerHTML=files.length?files.map(f=>"<li>"+esc(f.name)+" ("+Math.round(f.size/1024)+" KB)</li>").join(""):"<li>No se seleccionaron archivos.</li>";
  $("#process-files").disabled=!files.length;setProgress(0,files.length+" archivo(s) listo(s) para analizar.");
