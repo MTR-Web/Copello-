@@ -21,16 +21,18 @@ $("#master-file").addEventListener("change",async e=>{
 function populateColumns(){
  if(!workbook)return;
  const sheet=workbook.Sheets[$("#sheet-select").value];const data=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
- const headers=(data[0]||[]).map((v,i)=>String(v||("Columna "+(i+1))));
+ const headerIndex=Math.max(0,(Number($("#header-row").value)||1)-1);
+ const headers=(data[headerIndex]||[]).map((v,i)=>String(v||("Columna "+(i+1))));
  setOptions($("#unit-column"),headers);setOptions($("#name-column"),headers,true);setOptions($("#building-column"),headers,true);setOptions($("#expected-column"),headers,true);
  const find=terms=>headers.findIndex(h=>terms.some(t=>norm(h).includes(norm(t))));
  const unit=find(["unidad","uf","departamento","depto"]);if(unit>=0)$("#unit-column").value=unit;
  const name=find(["propietario","titular","nombre"]);if(name>=0)$("#name-column").value=name;
  const building=find(["consorcio","edificio","direccion"]);if(building>=0)$("#building-column").value=building;const expected=find(["saldo","importe esperado","a pagar","deuda","balance"]);if(expected>=0)$("#expected-column").value=expected;
- masterRows=data.slice(1).filter(r=>r.some(v=>String(v??"").trim())).map(r=>({unit:String(r[Number($("#unit-column").value)]??"").trim(),name:$("#name-column").value===""?"":String(r[Number($("#name-column").value)]??"").trim(),building:$("#building-column").value===""?"":String(r[Number($("#building-column").value)]??"").trim(),raw:r}));
+ const unitCol=Number($("#unit-column").value), nameCol=$("#name-column").value===""?-1:Number($("#name-column").value), buildingCol=$("#building-column").value===""?-1:Number($("#building-column").value), expectedCol=$("#expected-column").value===""?-1:Number($("#expected-column").value);
+ masterRows=data.slice(headerIndex+1).filter(r=>r.some(v=>String(v??"").trim())).map(r=>({unit:String(r[unitCol]??"").trim(),name:nameCol<0?"":String(r[nameCol]??"").trim(),building:buildingCol<0?"":String(r[buildingCol]??"").trim(),expected:expectedCol<0?"":String(r[expectedCol]??"").trim(),raw:r}));
 }
 $("#sheet-select").addEventListener("change",populateColumns);
-["unit-column","name-column","building-column","expected-column"].forEach(id=>$("#"+id).addEventListener("change",populateColumns));
+["unit-column","name-column","building-column","expected-column","header-row"].forEach(id=>$("#"+id).addEventListener("change",populateColumns));
 $("#receipt-files").addEventListener("change",()=>{
  const files=[...$("#receipt-files").files];$("#file-list").innerHTML=files.length?files.map(f=>"<li>"+esc(f.name)+" ("+Math.round(f.size/1024)+" KB)</li>").join(""):"<li>No se seleccionaron archivos.</li>";
  $("#process-files").disabled=!files.length;setProgress(0,files.length+" archivo(s) listo(s) para analizar.");
@@ -71,8 +73,12 @@ function parsePerson(text){
 }
 function matchUnit(text){
  if(!masterRows.length)return null;
- const t=norm(text);const col=Number($("#unit-column").value);
- const matches=masterRows.filter(r=>{const v=norm(r.raw[col]);return v.length>=2&&t.includes(v);});
+ const source=String(text??"").toLowerCase();
+ const matches=masterRows.filter(r=>[r.unit,r.name].some(candidate=>{
+   const value=String(candidate||"").trim();
+   if(value.length<3)return false;
+   return source.includes(value.toLowerCase());
+ }));
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
  return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
 }
@@ -118,7 +124,7 @@ $("#process-files").addEventListener("click",async()=>{
 });
 function render(){
  const body=$("#results-body");
- if(!receipts.length){body.innerHTML='<tr><td colspan="8" class="table-empty">Todavía no se analizaron comprobantes.</td></tr>';$("#download-copy").disabled=$("#export-csv").disabled=true;return;}
+ if(!receipts.length){body.innerHTML='<tr><td colspan="9" class="table-empty">Todavía no se analizaron comprobantes.</td></tr>';$("#download-copy").disabled=$("#export-csv").disabled=true;return;}
  body.innerHTML=receipts.map(r=>{
  const duplicate=r.operation&&receipts.filter(x=>normalizeOperation(x.operation)===normalizeOperation(r.operation)).length>1;
  const status=duplicate?"Duplicado posible":(r.status==="Duplicado posible"?"Pendiente de revisar":r.status);
@@ -133,7 +139,7 @@ function render(){
  body.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{receipts=receipts.filter(r=>r.id!==b.dataset.remove);render();}));
  body.querySelectorAll("[data-draft]").forEach(b=>b.addEventListener("click",()=>{const r=receipts.find(x=>x.id===b.dataset.draft);if(!r)return;$("#extracted-text").textContent="Borrador de acuse de recibo (no enviado):\n\n"+ACK+"\n\nArchivo: "+r.file+"\nImporte detectado: "+(r.amount||"pendiente de revisar")+"\nFecha detectada: "+(r.date||"pendiente de revisar")+"\n\n"+(r.text||"");$("#extracted-text").scrollIntoView({behavior:"smooth",block:"center"});}));
 }
-function currentRows(){return receipts.map(r=>({Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Unidad:r.unit,ImporteEsperado:r.expected,Estado:r.status,Observacion:r.status==="Duplicado posible"?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":"Revisar contra banco al cierre de mes"}));}
+function currentRows(){return receipts.map(r=>{const match=masterRows.find(m=>m.unit===r.unit);return {Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Consorcio:match?.building||"",Unidad:r.unit,Propietario:match?.name||"",ImporteEsperado:r.expected,Estado:r.status,Observacion:r.status==="Duplicado posible"?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":(r.expected&&r.amount&&moneyNumber(r.expected)!==moneyNumber(r.amount))?"Importe distinto del esperado; revisar antes de imputar":"Revisar acreditación bancaria antes de cerrar"};});}
 $("#export-csv").addEventListener("click",()=>{
  const rows=currentRows(),csv=[Object.keys(rows[0]||{}),...rows.map(Object.values)].map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});downloadBlob(blob,"Seguimiento_Comprobantes.csv");
