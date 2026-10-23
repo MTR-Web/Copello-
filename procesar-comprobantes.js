@@ -46,7 +46,7 @@ function parseDate(text){
  let m=text.match(patterns[0]);if(m)return String(m[1]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[3];
  m=text.match(patterns[1]);if(m)return String(m[3]).padStart(2,"0")+"/"+String(m[2]).padStart(2,"0")+"/"+m[1];
  const months="enero febrero marzo abril mayo junio julio agosto septiembre octubre noviembre diciembre".split(" ");
- const re=new RegExp("\\b(\\d{1,2})\\s*(?:de\\s*)?("+months.join("|")+")\\s*(?:de\\s*)?(20\\d{2})?","i");m=text.toLowerCase().match(re);
+ const re=new RegExp("\\b(\d{1,2})\\s*(?:de\\s*)?("+months.join("|")+")\\s*(?:de\\s*)?(20\d{2})?","i");m=text.toLowerCase().match(re);
  if(m)return String(m[1]).padStart(2,"0")+"/"+String(months.indexOf(m[2])+1).padStart(2,"0")+"/"+(m[3]||String(new Date().getFullYear()));
  return "";
 }
@@ -61,7 +61,7 @@ function matchUnit(text){
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
  return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
 }
-function moneyNumber(value){const s=String(value??"").replace(/[^\\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\\./g,"").replace(",","."):s.replace(/\\.(?=\\d{3}(?:\\D|$))/g,"");return Number(normalized);}
+function moneyNumber(value){const s=String(value??"").replace(/[^\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\./g,"").replace(",","."):s.replace(/\.(?=\d{3}(?:\\D|$))/g,"");return Number(normalized);}
 async function readImage(file){
  if(!window.Tesseract)throw Error("No se pudo cargar el OCR. Revisá la conexión a internet.");
  const result=await Tesseract.recognize(file,"spa+eng",{logger:m=>{if(m.status==="recognizing text")setProgress(5+Math.round(m.progress*70),"Reconociendo texto de "+file.name+"…");}});
