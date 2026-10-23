@@ -55,12 +55,13 @@ function parseOperation(text){
  for(const re of patterns){const m=text.match(re);if(m)return m[1];}return "";
 }
 function matchUnit(text){
- if(!masterRows.length)return "";
+ if(!masterRows.length)return null;
  const t=norm(text);const col=Number($("#unit-column").value);
  const matches=masterRows.filter(r=>{const v=norm(r.raw[col]);return v.length>=2&&t.includes(v);});
  const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
- return unique.length===1?matches.find(r=>r.unit===unique[0]).unit:"";
+ return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
 }
+function moneyNumber(value){const s=String(value??"").replace(/[^\\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\\./g,"").replace(",","."):s.replace(/\\.(?=\\d{3}(?:\\D|$))/g,"");return Number(normalized);}
 async function readImage(file){
  if(!window.Tesseract)throw Error("No se pudo cargar el OCR. Revisá la conexión a internet.");
  const result=await Tesseract.recognize(file,"spa+eng",{logger:m=>{if(m.status==="recognizing text")setProgress(5+Math.round(m.progress*70),"Reconociendo texto de "+file.name+"…");}});
@@ -86,8 +87,8 @@ async function processFile(file){
  $("#extracted-text").textContent=text||"No se pudo reconocer texto en este archivo.";
  const operation=parseOperation(text);
  const dup=operation&&receipts.some(r=>r.operation===operation);
- const unit=matchUnit(text);
- return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount:parseAmount(text),date:parseDate(text),operation,payer:"",sender:"",unit,text,status:dup?"Duplicado posible":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
+ const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);
+ return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer:"",sender:"",unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
 }
 $("#process-files").addEventListener("click",async()=>{
  const files=[...$("#receipt-files").files];if(!files.length)return;
@@ -117,7 +118,7 @@ function render(){
  body.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{receipts=receipts.filter(r=>r.id!==b.dataset.remove);render();}));
  body.querySelectorAll("[data-draft]").forEach(b=>b.addEventListener("click",()=>{const r=receipts.find(x=>x.id===b.dataset.draft);if(!r)return;$("#extracted-text").textContent="Borrador de acuse de recibo (no enviado):\n\n"+ACK+"\n\nArchivo: "+r.file+"\nImporte detectado: "+(r.amount||"pendiente de revisar")+"\nFecha detectada: "+(r.date||"pendiente de revisar")+"\n\n"+(r.text||"");$("#extracted-text").scrollIntoView({behavior:"smooth",block:"center"});}));
 }
-function currentRows(){return receipts.map(r=>({Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Unidad:r.unit,Estado:r.status,Observacion:r.status==="Duplicado posible"?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":"Revisar contra banco al cierre de mes"}));}
+function currentRows(){return receipts.map(r=>({Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Unidad:r.unit,ImporteEsperado:r.expected,Estado:r.status,Observacion:r.status==="Duplicado posible"?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":"Revisar contra banco al cierre de mes"}));}
 $("#export-csv").addEventListener("click",()=>{
  const rows=currentRows(),csv=[Object.keys(rows[0]||{}),...rows.map(Object.values)].map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});downloadBlob(blob,"Seguimiento_Comprobantes.csv");
