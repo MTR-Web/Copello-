@@ -34,7 +34,7 @@ El flujo de Gmail y el procesador de archivos son dos partes relacionadas, pero 
 ## Importante
 
 - No publiques Apps Script como aplicación web abierta ni compartas el proyecto con terceros.
-- La integración se ejecuta manualmente; no hay sincronización automática ni botón en Copello que la ejecute todavía.
+- La integración se ejecuta manualmente desde Google Apps Script. Para pasar los registros a la página Copello: abrí la planilla `Copello_Registro_Comprobantes`, descargala como CSV (Archivo → Descargar → Valores separados por comas), entrá en Pagos y comprobantes en Copello y usá `Importar CSV de Gmail`. La página evita importar dos veces una misma combinación de ID de mensaje y nombre de adjunto. Esta transferencia sigue siendo manual; no hay conexión en vivo entre la página y Gmail.
 - Si un hilo ya tiene la etiqueta `Copello_Procesado`, no volverá a entrar en la búsqueda normal. Para repetir una prueba, quitale esa etiqueta al hilo.
 - Si hay un error parcial, revisá la planilla, Drive y Borradores antes de volver a ejecutar para evitar registros duplicados.
 - El script no lee importes ni asigna unidades en la planilla. El registro significa “se recibió un archivo”, no “se confirmó el pago”.
