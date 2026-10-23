@@ -80,8 +80,8 @@ function matchUnit(text){
    const candidateKey=" "+value.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ")+" ";
    return source.includes(candidateKey);
  }));
- const unique=[...new Set(matches.map(r=>r.unit).filter(Boolean))];
- return unique.length===1?matches.find(r=>r.unit===unique[0]):null;
+ const unique=[...new Set(matches.map(r=>r.unit+"|"+r.building+"|"+r.name))];
+ return unique.length===1?matches[0]:null;
 }
 function moneyNumber(value){const s=String(value??"").replace(/[^\d,.-]/g,"");if(!s)return NaN;const normalized=s.includes(",")?s.replace(/\./g,"").replace(",","."):s.replace(/\.(?=\d{3}(?:\D|$))/g,"");return Number(normalized);}
 async function readImage(file){
@@ -110,7 +110,7 @@ async function processFile(file){
  const operation=parseOperation(text);
  const dup=operation&&receipts.some(r=>normalizeOperation(r.operation)===normalizeOperation(operation));
  const matched=matchUnit(text);const unit=matched?.unit||"";const expected=matched?.expected||"";const amount=parseAmount(text);const sameAmount=amount!==""&&expected!==""&&moneyNumber(amount)===moneyNumber(expected);const sender=parsePerson(text);const payerMatch=text.match(/(?:pagador|ordenante|beneficiario|titular)\s*[:\-]\s*([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ\x27 -]{3,60})/i);const payer=payerMatch?payerMatch[1].trim():sender;
- return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer,sender,unit,text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
+ return {id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),file:file.name,amount,expected,date:parseDate(text),operation,payer,sender,unit,building:matched?.building||"",matchedName:matched?.name||"",text,status:dup?"Duplicado posible":sameAmount?"OK — importe exacto":expected&&amount?"Difiere del esperado ("+expected+")":unit?"Revisar datos":"Pendiente de identificar",draft:ACK};
 }
 $("#process-files").addEventListener("click",async()=>{
  const files=[...$("#receipt-files").files];if(!files.length)return;
@@ -130,18 +130,19 @@ function render(){
  const duplicate=r.operation&&receipts.filter(x=>normalizeOperation(x.operation)===normalizeOperation(r.operation)).length>1;
  const status=duplicate?"Duplicado posible":(r.status==="Duplicado posible"?"Pendiente de revisar":r.status);
  const cls=duplicate?"status-duplicate":status.startsWith("OK")?"status-ok":"status-review";
- return '<tr data-id="'+esc(r.id)+'"><td>'+esc(r.file)+'</td><td><input data-field="amount" value="'+esc(r.amount)+'" placeholder="Revisar importe"></td><td><input data-field="date" value="'+esc(r.date)+'" placeholder="DD/MM/AAAA"></td><td><input data-field="operation" value="'+esc(r.operation)+'" placeholder="N.º operación"></td><td><input data-field="payer" value="'+esc(r.payer)+'" placeholder="Nombre pagador"><input data-field="sender" value="'+esc(r.sender)+'" placeholder="Remitente"></td><td><select data-field="unit"><option value="">Pendiente</option>'+masterRows.map(m=>'<option value="'+esc(m.unit)+'" '+(m.unit===r.unit?'selected':'')+'>'+esc([m.unit,m.name,m.building].filter(Boolean).join(" — "))+'</option>').join("")+'</select></td><td>'+esc(r.expected||"—")+'</td><td><span class="'+cls+'">'+esc(status)+'</span></td><td><button class="secondary-button draft-btn" data-draft="'+esc(r.id)+'">Ver texto</button><button class="row-delete" data-remove="'+esc(r.id)+'" title="Quitar">×</button></td></tr>'
- }).join("");
+ const selected=String(r.unit||"")+"|"+String(r.building||"")+"|"+String(r.matchedName||"");
+ return '<tr data-id="'+esc(r.id)+'"><td>'+esc(r.file)+'</td><td><input data-field="amount" value="'+esc(r.amount)+'" placeholder="Revisar importe"></td><td><input data-field="date" value="'+esc(r.date)+'" placeholder="DD/MM/AAAA"></td><td><input data-field="operation" value="'+esc(r.operation)+'" placeholder="N.º operación"></td><td><input data-field="payer" value="'+esc(r.payer)+'" placeholder="Nombre pagador"><input data-field="sender" value="'+esc(r.sender)+'" placeholder="Remitente"></td><td><select data-field="unit"><option value="">Pendiente</option>'+masterRows.map(m=>{const key=String(m.unit||"")+"|"+String(m.building||"")+"|"+String(m.name||"");return '<option value="'+esc(key)+'" '+(key===selected?'selected':'')+'>'+esc([m.unit,m.name,m.building].filter(Boolean).join(" — "))+'</option>';}).join("")+'</select></td><td>'+esc(r.expected||"—")+'</td><td><span class="'+cls+'">'+esc(status)+'</span></td><td><button class="secondary-button draft-btn" data-draft="'+esc(r.id)+'">Ver texto</button><button class="row-delete" data-remove="'+esc(r.id)+'" title="Quitar">×</button></td></tr>';
  $("#download-copy").disabled=!workbook;$("#export-csv").disabled=!receipts.length;
  body.querySelectorAll("input[data-field],select[data-field]").forEach(el=>el.addEventListener("change",()=>{
- const row=el.closest("tr"),r=receipts.find(x=>x.id===row.dataset.id);if(!r)return;r[el.dataset.field]=el.value;
- if(el.dataset.field==="unit"){const match=masterRows.find(m=>m.unit===r.unit);r.expected=match?.expected||"";}
+ const row=el.closest("tr"),r=receipts.find(x=>x.id===row.dataset.id);if(!r)return;
+ if(el.dataset.field==="unit"){const parts=el.value.split("|");const match=masterRows.find(m=>String(m.unit||"")+"|"+String(m.building||"")+"|"+String(m.name||"")===el.value);r.unit=match?.unit||"";r.building=match?.building||"";r.matchedName=match?.name||"";r.expected=match?.expected||"";}
+ else r[el.dataset.field]=el.value;
  if(el.dataset.field==="operation"&&r.status==="Duplicado posible")r.status="Pendiente de revisar";render();
  }));
  body.querySelectorAll("[data-remove]").forEach(b=>b.addEventListener("click",()=>{receipts=receipts.filter(r=>r.id!==b.dataset.remove);render();}));
  body.querySelectorAll("[data-draft]").forEach(b=>b.addEventListener("click",()=>{const r=receipts.find(x=>x.id===b.dataset.draft);if(!r)return;$("#extracted-text").textContent="Borrador de acuse de recibo (no enviado):\n\n"+ACK+"\n\nArchivo: "+r.file+"\nImporte detectado: "+(r.amount||"pendiente de revisar")+"\nFecha detectada: "+(r.date||"pendiente de revisar")+"\n\n"+(r.text||"");$("#extracted-text").scrollIntoView({behavior:"smooth",block:"center"});}));
 }
-function currentRows(){return receipts.map(r=>{const match=masterRows.find(m=>m.unit===r.unit);const duplicate=!!r.operation&&receipts.filter(x=>normalizeOperation(x.operation)===normalizeOperation(r.operation)).length>1;const status=duplicate?"Duplicado posible":r.status;return {Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Consorcio:match?.building||"",Unidad:r.unit,Propietario:match?.name||"",ImporteEsperado:r.expected,Estado:status,Observacion:duplicate?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":(r.expected&&r.amount&&moneyNumber(r.expected)!==moneyNumber(r.amount))?"Importe distinto del esperado; revisar antes de imputar":"Revisar acreditación bancaria antes de cerrar"};});}
+function currentRows(){return receipts.map(r=>{const match=masterRows.find(m=>m.unit===r.unit&&m.building===r.building&&m.name===r.matchedName);const duplicate=!!r.operation&&receipts.filter(x=>normalizeOperation(x.operation)===normalizeOperation(r.operation)).length>1;const status=duplicate?"Duplicado posible":r.status;return {Archivo:r.file,Importe:r.amount,Fecha:r.date,Operacion:r.operation,Pagador:r.payer||r.sender||"No identificado",Remitente:r.sender,Consorcio:r.building||match?.building||"",Unidad:r.unit,Propietario:r.matchedName||match?.name||"",ImporteEsperado:r.expected,Estado:status,Observacion:duplicate?"Verificar número de operación":(!r.amount||!r.date||!r.unit)?"Revisión manual requerida":(r.expected&&r.amount&&moneyNumber(r.expected)!==moneyNumber(r.amount))?"Importe distinto del esperado; revisar antes de imputar":"Revisar acreditación bancaria antes de cerrar"};});}
 $("#export-csv").addEventListener("click",()=>{
  const rows=currentRows(),csv=[Object.keys(rows[0]||{}),...rows.map(Object.values)].map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(";")).join("\r\n");
  const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8"});downloadBlob(blob,"Seguimiento_Comprobantes.csv");
